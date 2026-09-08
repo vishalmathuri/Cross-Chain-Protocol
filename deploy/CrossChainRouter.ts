@@ -22,6 +22,12 @@ const deploy: DeployFunction = async (hre) => {
         'Missing named deployer account'
     )
 
+    if (hre.network.name !== 'sepolia') {
+        throw new Error(
+            `Unsupported network: ${hre.network.name}. CrossChainRouter EVM deployment is intended for Ethereum Sepolia.`
+        )
+    }
+
     console.log(
         `Network: ${hre.network.name}`
     )
@@ -51,25 +57,8 @@ const deploy: DeployFunction = async (hre) => {
         `CrossChainRouter deployed: ${deployment.address}`
     )
 
-    let remoteEid: number
-
-    if (
-        hre.network.name ===
-        'base-sepolia'
-    ) {
-        remoteEid =
-            EndpointId.ARBSEP_V2_TESTNET
-    } else if (
-        hre.network.name ===
-        'arbitrum-sepolia'
-    ) {
-        remoteEid =
-            EndpointId.BASESEP_V2_TESTNET
-    } else {
-        throw new Error(
-            `Unsupported network: ${hre.network.name}`
-        )
-    }
+    const remoteEid =
+        EndpointId.SOLANA_V2_TESTNET
 
     const signer =
         await ethers.getSigner(deployer)
@@ -82,7 +71,7 @@ const deploy: DeployFunction = async (hre) => {
         )
 
     console.log(
-        `Configuring destination EID ${remoteEid}...`
+        `Configuring Solana Devnet destination EID ${remoteEid}...`
     )
 
     const tx =
@@ -96,7 +85,7 @@ const deploy: DeployFunction = async (hre) => {
     await tx.wait()
 
     console.log(
-        `Destination ${remoteEid} enabled: 100 messages/hour`
+        `Solana Devnet destination ${remoteEid} enabled: 100 messages/hour`
     )
 }
 

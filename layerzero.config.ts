@@ -1,164 +1,66 @@
-import {
-    EndpointId,
-} from '@layerzerolabs/lz-definitions'
+import { EndpointId } from '@layerzerolabs/lz-definitions'
 
-import {
-    ExecutorOptionType,
-} from '@layerzerolabs/lz-v2-utilities'
-
-import {
-    TwoWayConfig,
-    generateConnectionsConfig,
-} from '@layerzerolabs/metadata-tools'
-
-import {
-    OAppEnforcedOption,
+import type {
+    OAppOmniGraphHardhat,
     OmniPointHardhat,
 } from '@layerzerolabs/toolbox-hardhat'
 
 // =============================================================
-//                         ROUTERS
+//                    ETHEREUM SEPOLIA OAPPS
 // =============================================================
 
-const baseRouter: OmniPointHardhat = {
-    eid: EndpointId.BASESEP_V2_TESTNET,
+const sepoliaRouter: OmniPointHardhat = {
+    eid: EndpointId.SEPOLIA_V2_TESTNET,
     contractName: 'CrossChainRouter',
 }
 
-const arbitrumRouter: OmniPointHardhat = {
-    eid: EndpointId.ARBSEP_V2_TESTNET,
-    contractName: 'CrossChainRouter',
-}
-
-// =============================================================
-//                          TOKENS
-// =============================================================
-
-const baseToken: OmniPointHardhat = {
-    eid: EndpointId.BASESEP_V2_TESTNET,
-    contractName: 'CrossChainToken',
-}
-
-const arbitrumToken: OmniPointHardhat = {
-    eid: EndpointId.ARBSEP_V2_TESTNET,
+const sepoliaToken: OmniPointHardhat = {
+    eid: EndpointId.SEPOLIA_V2_TESTNET,
     contractName: 'CrossChainToken',
 }
 
 // =============================================================
-//                   EXECUTION OPTIONS
+//                    LAYERZERO CONFIG
 // =============================================================
-
-// CrossChainRouter performs several destination storage writes,
-// replay checks and event emission, so give it comfortable
-// destination execution headroom.
-
-const ROUTER_OPTIONS: OAppEnforcedOption[] = [
-    {
-        msgType: 1,
-        optionType:
-            ExecutorOptionType.LZ_RECEIVE,
-        gas: 500000,
-        value: 0,
-    },
-]
-
-// Our OFT tests successfully execute with 100k.
-// Use 200k on testnet for additional execution headroom.
-
-const TOKEN_OPTIONS: OAppEnforcedOption[] = [
-    {
-        msgType: 1,
-        optionType:
-            ExecutorOptionType.LZ_RECEIVE,
-        gas: 200000,
-        value: 0,
-    },
-]
-
-// =============================================================
-//                         PATHWAYS
-// =============================================================
-
-// TESTNET security configuration.
 //
-// One required LayerZero Labs DVN is sufficient for this
-// portfolio/testnet deployment.
+// Solana is intentionally NOT added yet.
 //
-// A production deployment should use multiple independent
-// required DVNs.
+// After deploying the Rust/Anchor OApp we will obtain:
+//
+// 1. Solana OApp Store PDA
+// 2. Solana OFT Store address
+//
+// Those addresses will then be added here as:
+//
+// {
+//     eid: EndpointId.SOLANA_V2_TESTNET,
+//     address: '<SOLANA_OAPP_STORE_PDA>',
+// }
+//
+// and
+//
+// {
+//     eid: EndpointId.SOLANA_V2_TESTNET,
+//     address: '<SOLANA_OFT_STORE>',
+// }
+//
+// We will then create:
+//
+// Ethereum Router <-> Solana OApp
+// Ethereum OFT    <-> Solana OFT
+//
 
-const pathways: TwoWayConfig[] = [
-    // ---------------------------------------------------------
-    // CrossChainRouter
-    // Base Sepolia <-> Arbitrum Sepolia
-    // ---------------------------------------------------------
-    [
-        baseRouter,
-        arbitrumRouter,
-
-        [
-            ['LayerZero Labs'],
-            [],
-        ],
-
-        [
-            1,
-            1,
-        ],
-
-        [
-            ROUTER_OPTIONS,
-            ROUTER_OPTIONS,
-        ],
+const config: OAppOmniGraphHardhat = {
+    contracts: [
+        {
+            contract: sepoliaRouter,
+        },
+        {
+            contract: sepoliaToken,
+        },
     ],
 
-    // ---------------------------------------------------------
-    // CrossChainToken OFT
-    // Base Sepolia <-> Arbitrum Sepolia
-    // ---------------------------------------------------------
-    [
-        baseToken,
-        arbitrumToken,
-
-        [
-            ['LayerZero Labs'],
-            [],
-        ],
-
-        [
-            1,
-            1,
-        ],
-
-        [
-            TOKEN_OPTIONS,
-            TOKEN_OPTIONS,
-        ],
-    ],
-]
-
-export default async function () {
-    const connections =
-        await generateConnectionsConfig(
-            pathways
-        )
-
-    return {
-        contracts: [
-            {
-                contract: baseRouter,
-            },
-            {
-                contract: arbitrumRouter,
-            },
-            {
-                contract: baseToken,
-            },
-            {
-                contract: arbitrumToken,
-            },
-        ],
-
-        connections,
-    }
+    connections: [],
 }
+
+export default config

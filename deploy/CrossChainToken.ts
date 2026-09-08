@@ -21,6 +21,12 @@ const deploy: DeployFunction = async (hre) => {
         'Missing named deployer account'
     )
 
+    if (hre.network.name !== 'sepolia') {
+        throw new Error(
+            `Unsupported network: ${hre.network.name}. CrossChainToken EVM deployment is intended for Ethereum Sepolia.`
+        )
+    }
+
     console.log(
         `Network: ${hre.network.name}`
     )
@@ -32,32 +38,13 @@ const deploy: DeployFunction = async (hre) => {
     const endpointV2Deployment =
         await get('EndpointV2')
 
-    let initialHolder: string
-    let initialSupply
+    const initialHolder =
+        deployer
 
-    if (
-        hre.network.name ===
-        'base-sepolia'
-    ) {
-        initialHolder = deployer
-
-        initialSupply =
-            ethers.utils.parseEther(
-                '1000000'
-            )
-    } else if (
-        hre.network.name ===
-        'arbitrum-sepolia'
-    ) {
-        initialHolder =
-            ethers.constants.AddressZero
-
-        initialSupply = 0
-    } else {
-        throw new Error(
-            `Unsupported network: ${hre.network.name}`
+    const initialSupply =
+        ethers.utils.parseEther(
+            '1000000'
         )
-    }
 
     const deployment =
         await deploy(contractName, {
@@ -81,18 +68,9 @@ const deploy: DeployFunction = async (hre) => {
         `CrossChainToken deployed: ${deployment.address}`
     )
 
-    if (
-        hre.network.name ===
-        'base-sepolia'
-    ) {
-        console.log(
-            'Initial supply: 1,000,000 CCT'
-        )
-    } else {
-        console.log(
-            'Initial supply: 0 CCT'
-        )
-    }
+    console.log(
+        'Initial supply: 1,000,000 CCT on Ethereum Sepolia'
+    )
 }
 
 deploy.tags = [
