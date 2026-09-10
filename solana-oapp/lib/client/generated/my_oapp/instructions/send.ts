@@ -6,19 +6,15 @@
  * @see https://github.com/kinobi-so/kinobi
  */
 
-import { Context, Pda, PublicKey, TransactionBuilder, transactionBuilder } from '@metaplex-foundation/umi'
-import { Serializer, bytes, mapSerializer, string, struct, u32, u64 } from '@metaplex-foundation/umi/serializers'
+import { Context, Pda, PublicKey, Signer, TransactionBuilder, transactionBuilder } from '@metaplex-foundation/umi'
+import { Serializer, bytes, mapSerializer, struct, u32, u64 } from '@metaplex-foundation/umi/serializers'
 import { ResolvedAccount, ResolvedAccountsWithIndices, getAccountMetasAndSigners } from '../shared'
 
 // Accounts.
 export type SendInstructionAccounts = {
-    /**
-     * Configuration for the destination chain. Holds the peer address and any
-     * enforced messaging options.
-     */
-
+    /** Actual Solana application-level sender. */
+    sender: Signer
     peer: PublicKey | Pda
-    /** OApp Store PDA that signs the send instruction */
     store: PublicKey | Pda
     endpoint: PublicKey | Pda
 }
@@ -27,7 +23,9 @@ export type SendInstructionAccounts = {
 export type SendInstructionData = {
     discriminator: Uint8Array
     dstEid: number
-    message: string
+    /** Application-level receiver, not the LayerZero peer. */
+    receiver: Uint8Array
+    data: Uint8Array
     options: Uint8Array
     nativeFee: bigint
     lzTokenFee: bigint
@@ -35,7 +33,9 @@ export type SendInstructionData = {
 
 export type SendInstructionDataArgs = {
     dstEid: number
-    message: string
+    /** Application-level receiver, not the LayerZero peer. */
+    receiver: Uint8Array
+    data: Uint8Array
     options: Uint8Array
     nativeFee: number | bigint
     lzTokenFee: number | bigint
@@ -47,7 +47,8 @@ export function getSendInstructionDataSerializer(): Serializer<SendInstructionDa
             [
                 ['discriminator', bytes({ size: 8 })],
                 ['dstEid', u32()],
-                ['message', string()],
+                ['receiver', bytes({ size: 32 })],
+                ['data', bytes({ size: u32() })],
                 ['options', bytes({ size: u32() })],
                 ['nativeFee', u64()],
                 ['lzTokenFee', u64()],
@@ -71,9 +72,10 @@ export function send(
 
     // Accounts.
     const resolvedAccounts = {
-        peer: { index: 0, isWritable: false as boolean, value: input.peer ?? null },
-        store: { index: 1, isWritable: false as boolean, value: input.store ?? null },
-        endpoint: { index: 2, isWritable: false as boolean, value: input.endpoint ?? null },
+        sender: { index: 0, isWritable: false as boolean, value: input.sender ?? null },
+        peer: { index: 1, isWritable: false as boolean, value: input.peer ?? null },
+        store: { index: 2, isWritable: true as boolean, value: input.store ?? null },
+        endpoint: { index: 3, isWritable: false as boolean, value: input.endpoint ?? null },
     } satisfies ResolvedAccountsWithIndices
 
     // Arguments.

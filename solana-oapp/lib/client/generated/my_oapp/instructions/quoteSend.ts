@@ -7,7 +7,7 @@
  */
 
 import { Context, Pda, PublicKey, TransactionBuilder, transactionBuilder } from '@metaplex-foundation/umi'
-import { Serializer, bool, bytes, mapSerializer, string, struct, u32 } from '@metaplex-foundation/umi/serializers'
+import { Serializer, bool, bytes, mapSerializer, struct, u32 } from '@metaplex-foundation/umi/serializers'
 import { ResolvedAccount, ResolvedAccountsWithIndices, getAccountMetasAndSigners } from '../shared'
 
 // Accounts.
@@ -21,16 +21,22 @@ export type QuoteSendInstructionAccounts = {
 export type QuoteSendInstructionData = {
     discriminator: Uint8Array
     dstEid: number
+    /** Solana sender pubkey serialized as bytes32. */
+    sender: Uint8Array
+    /** Application-level destination receiver. */
     receiver: Uint8Array
-    message: string
+    data: Uint8Array
     options: Uint8Array
     payInLzToken: boolean
 }
 
 export type QuoteSendInstructionDataArgs = {
     dstEid: number
+    /** Solana sender pubkey serialized as bytes32. */
+    sender: Uint8Array
+    /** Application-level destination receiver. */
     receiver: Uint8Array
-    message: string
+    data: Uint8Array
     options: Uint8Array
     payInLzToken: boolean
 }
@@ -44,8 +50,9 @@ export function getQuoteSendInstructionDataSerializer(): Serializer<
             [
                 ['discriminator', bytes({ size: 8 })],
                 ['dstEid', u32()],
+                ['sender', bytes({ size: 32 })],
                 ['receiver', bytes({ size: 32 })],
-                ['message', string()],
+                ['data', bytes({ size: u32() })],
                 ['options', bytes({ size: u32() })],
                 ['payInLzToken', bool()],
             ],

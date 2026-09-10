@@ -24,8 +24,8 @@ import {
     bytes,
     mapSerializer,
     publicKey as publicKeySerializer,
-    string,
     struct,
+    u64,
     u8,
 } from '@metaplex-foundation/umi/serializers'
 
@@ -36,10 +36,21 @@ export type StoreAccountData = {
     admin: PublicKey
     bump: number
     endpointProgram: PublicKey
-    string: string
+    outboundNonce: bigint
+    receivedCount: bigint
+    lastReceivedGuid: Uint8Array
+    lastReceivedMessageId: Uint8Array
 }
 
-export type StoreAccountDataArgs = { admin: PublicKey; bump: number; endpointProgram: PublicKey; string: string }
+export type StoreAccountDataArgs = {
+    admin: PublicKey
+    bump: number
+    endpointProgram: PublicKey
+    outboundNonce: number | bigint
+    receivedCount: number | bigint
+    lastReceivedGuid: Uint8Array
+    lastReceivedMessageId: Uint8Array
+}
 
 export function getStoreAccountDataSerializer(): Serializer<StoreAccountDataArgs, StoreAccountData> {
     return mapSerializer<StoreAccountDataArgs, any, StoreAccountData>(
@@ -49,7 +60,10 @@ export function getStoreAccountDataSerializer(): Serializer<StoreAccountDataArgs
                 ['admin', publicKeySerializer()],
                 ['bump', u8()],
                 ['endpointProgram', publicKeySerializer()],
-                ['string', string()],
+                ['outboundNonce', u64()],
+                ['receivedCount', u64()],
+                ['lastReceivedGuid', bytes({ size: 32 })],
+                ['lastReceivedMessageId', bytes({ size: 32 })],
             ],
             { description: 'StoreAccountData' }
         ),
@@ -117,14 +131,24 @@ export function getStoreGpaBuilder(context: Pick<Context, 'rpc' | 'programs'>) {
             admin: PublicKey
             bump: number
             endpointProgram: PublicKey
-            string: string
+            outboundNonce: number | bigint
+            receivedCount: number | bigint
+            lastReceivedGuid: Uint8Array
+            lastReceivedMessageId: Uint8Array
         }>({
             discriminator: [0, bytes({ size: 8 })],
             admin: [8, publicKeySerializer()],
             bump: [40, u8()],
             endpointProgram: [41, publicKeySerializer()],
-            string: [73, string()],
+            outboundNonce: [73, u64()],
+            receivedCount: [81, u64()],
+            lastReceivedGuid: [89, bytes({ size: 32 })],
+            lastReceivedMessageId: [121, bytes({ size: 32 })],
         })
         .deserializeUsing<Store>((account) => deserializeStore(account))
         .whereField('discriminator', new Uint8Array([130, 48, 247, 244, 182, 191, 30, 26]))
+}
+
+export function getStoreSize(): number {
+    return 153
 }

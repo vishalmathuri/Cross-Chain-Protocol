@@ -14,15 +14,15 @@ import { LzReceiveParams, LzReceiveParamsArgs, getLzReceiveParamsSerializer } fr
 // Accounts.
 export type LzReceiveInstructionAccounts = {
     payer?: Signer
+    store: PublicKey | Pda
+    peer: PublicKey | Pda
     /**
-     * OApp Store PDA.  This account represents the "address" of your OApp on
-     * Solana and can contain any state relevant to your application.
-     * Customize the fields in `Store` as needed.
+     * PDA address is recomputed from the logical application message ID
+     * before use. It is created and owned by this program.
      */
 
-    store: PublicKey | Pda
-    /** Peer config PDA for the sending chain. Ensures `params.sender` can only be the allowed peer from that remote chain. */
-    peer: PublicKey | Pda
+    receivedMessage: PublicKey | Pda
+    systemProgram?: PublicKey | Pda
 }
 
 // Data.
@@ -62,6 +62,8 @@ export function lzReceive(
         payer: { index: 0, isWritable: true as boolean, value: input.payer ?? null },
         store: { index: 1, isWritable: true as boolean, value: input.store ?? null },
         peer: { index: 2, isWritable: false as boolean, value: input.peer ?? null },
+        receivedMessage: { index: 3, isWritable: true as boolean, value: input.receivedMessage ?? null },
+        systemProgram: { index: 4, isWritable: false as boolean, value: input.systemProgram ?? null },
     } satisfies ResolvedAccountsWithIndices
 
     // Arguments.
@@ -70,6 +72,13 @@ export function lzReceive(
     // Default values.
     if (!resolvedAccounts.payer.value) {
         resolvedAccounts.payer.value = context.payer
+    }
+    if (!resolvedAccounts.systemProgram.value) {
+        resolvedAccounts.systemProgram.value = context.programs.getPublicKey(
+            'splSystem',
+            '11111111111111111111111111111111'
+        )
+        resolvedAccounts.systemProgram.isWritable = false
     }
 
     // Accounts in order.

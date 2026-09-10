@@ -12,44 +12,200 @@ type ProgramErrorConstructor = new (program: Program, cause?: Error) => ProgramE
 const codeToErrorMap: Map<number, ProgramErrorConstructor> = new Map()
 const nameToErrorMap: Map<string, ProgramErrorConstructor> = new Map()
 
-/** InvalidLength:  */
-export class InvalidLengthError extends ProgramError {
-    override readonly name: string = 'InvalidLength'
+/** InvalidProtocolVersion: Unsupported protocol version */
+export class InvalidProtocolVersionError extends ProgramError {
+    override readonly name: string = 'InvalidProtocolVersion'
 
     readonly code: number = 0x1770 // 6000
 
     constructor(program: Program, cause?: Error) {
-        super('', program, cause)
+        super('Unsupported protocol version', program, cause)
     }
 }
-codeToErrorMap.set(0x1770, InvalidLengthError)
-nameToErrorMap.set('InvalidLength', InvalidLengthError)
+codeToErrorMap.set(0x1770, InvalidProtocolVersionError)
+nameToErrorMap.set('InvalidProtocolVersion', InvalidProtocolVersionError)
 
-/** BodyTooShort:  */
-export class BodyTooShortError extends ProgramError {
-    override readonly name: string = 'BodyTooShort'
+/** InvalidMessageType: Unsupported message type */
+export class InvalidMessageTypeError extends ProgramError {
+    override readonly name: string = 'InvalidMessageType'
 
     readonly code: number = 0x1771 // 6001
 
     constructor(program: Program, cause?: Error) {
-        super('', program, cause)
+        super('Unsupported message type', program, cause)
     }
 }
-codeToErrorMap.set(0x1771, BodyTooShortError)
-nameToErrorMap.set('BodyTooShort', BodyTooShortError)
+codeToErrorMap.set(0x1771, InvalidMessageTypeError)
+nameToErrorMap.set('InvalidMessageType', InvalidMessageTypeError)
 
-/** InvalidUtf8:  */
-export class InvalidUtf8Error extends ProgramError {
-    override readonly name: string = 'InvalidUtf8'
+/** InvalidAbiEncoding: Invalid ABI encoded message */
+export class InvalidAbiEncodingError extends ProgramError {
+    override readonly name: string = 'InvalidAbiEncoding'
 
     readonly code: number = 0x1772 // 6002
 
     constructor(program: Program, cause?: Error) {
-        super('', program, cause)
+        super('Invalid ABI encoded message', program, cause)
     }
 }
-codeToErrorMap.set(0x1772, InvalidUtf8Error)
-nameToErrorMap.set('InvalidUtf8', InvalidUtf8Error)
+codeToErrorMap.set(0x1772, InvalidAbiEncodingError)
+nameToErrorMap.set('InvalidAbiEncoding', InvalidAbiEncodingError)
+
+/** InvalidMessageLength: Invalid message length */
+export class InvalidMessageLengthError extends ProgramError {
+    override readonly name: string = 'InvalidMessageLength'
+
+    readonly code: number = 0x1773 // 6003
+
+    constructor(program: Program, cause?: Error) {
+        super('Invalid message length', program, cause)
+    }
+}
+codeToErrorMap.set(0x1773, InvalidMessageLengthError)
+nameToErrorMap.set('InvalidMessageLength', InvalidMessageLengthError)
+
+/** ZeroReceiver: Receiver cannot be zero */
+export class ZeroReceiverError extends ProgramError {
+    override readonly name: string = 'ZeroReceiver'
+
+    readonly code: number = 0x1774 // 6004
+
+    constructor(program: Program, cause?: Error) {
+        super('Receiver cannot be zero', program, cause)
+    }
+}
+codeToErrorMap.set(0x1774, ZeroReceiverError)
+nameToErrorMap.set('ZeroReceiver', ZeroReceiverError)
+
+/** EmptyPayload: Message data cannot be empty */
+export class EmptyPayloadError extends ProgramError {
+    override readonly name: string = 'EmptyPayload'
+
+    readonly code: number = 0x1775 // 6005
+
+    constructor(program: Program, cause?: Error) {
+        super('Message data cannot be empty', program, cause)
+    }
+}
+codeToErrorMap.set(0x1775, EmptyPayloadError)
+nameToErrorMap.set('EmptyPayload', EmptyPayloadError)
+
+/** PayloadTooLarge: Message data exceeds maximum size */
+export class PayloadTooLargeError extends ProgramError {
+    override readonly name: string = 'PayloadTooLarge'
+
+    readonly code: number = 0x1776 // 6006
+
+    constructor(program: Program, cause?: Error) {
+        super('Message data exceeds maximum size', program, cause)
+    }
+}
+codeToErrorMap.set(0x1776, PayloadTooLargeError)
+nameToErrorMap.set('PayloadTooLarge', PayloadTooLargeError)
+
+/** NonceOverflow: Outbound nonce overflow */
+export class NonceOverflowError extends ProgramError {
+    override readonly name: string = 'NonceOverflow'
+
+    readonly code: number = 0x1777 // 6007
+
+    constructor(program: Program, cause?: Error) {
+        super('Outbound nonce overflow', program, cause)
+    }
+}
+codeToErrorMap.set(0x1777, NonceOverflowError)
+nameToErrorMap.set('NonceOverflow', NonceOverflowError)
+
+/** InvalidTimestamp: Invalid timestamp */
+export class InvalidTimestampError extends ProgramError {
+    override readonly name: string = 'InvalidTimestamp'
+
+    readonly code: number = 0x1778 // 6008
+
+    constructor(program: Program, cause?: Error) {
+        super('Invalid timestamp', program, cause)
+    }
+}
+codeToErrorMap.set(0x1778, InvalidTimestampError)
+nameToErrorMap.set('InvalidTimestamp', InvalidTimestampError)
+
+/** InvalidEndpoint: Invalid LayerZero endpoint */
+export class InvalidEndpointError extends ProgramError {
+    override readonly name: string = 'InvalidEndpoint'
+
+    readonly code: number = 0x1779 // 6009
+
+    constructor(program: Program, cause?: Error) {
+        super('Invalid LayerZero endpoint', program, cause)
+    }
+}
+codeToErrorMap.set(0x1779, InvalidEndpointError)
+nameToErrorMap.set('InvalidEndpoint', InvalidEndpointError)
+
+/** AdminMustBePayer: Store admin must be the initializing signer */
+export class AdminMustBePayerError extends ProgramError {
+    override readonly name: string = 'AdminMustBePayer'
+
+    readonly code: number = 0x177a // 6010
+
+    constructor(program: Program, cause?: Error) {
+        super('Store admin must be the initializing signer', program, cause)
+    }
+}
+codeToErrorMap.set(0x177a, AdminMustBePayerError)
+nameToErrorMap.set('AdminMustBePayer', AdminMustBePayerError)
+
+/** InvalidPeerAddress: Peer address cannot be zero */
+export class InvalidPeerAddressError extends ProgramError {
+    override readonly name: string = 'InvalidPeerAddress'
+
+    readonly code: number = 0x177b // 6011
+
+    constructor(program: Program, cause?: Error) {
+        super('Peer address cannot be zero', program, cause)
+    }
+}
+codeToErrorMap.set(0x177b, InvalidPeerAddressError)
+nameToErrorMap.set('InvalidPeerAddress', InvalidPeerAddressError)
+
+/** InvalidReceiptAccount: Invalid received-message PDA */
+export class InvalidReceiptAccountError extends ProgramError {
+    override readonly name: string = 'InvalidReceiptAccount'
+
+    readonly code: number = 0x177c // 6012
+
+    constructor(program: Program, cause?: Error) {
+        super('Invalid received-message PDA', program, cause)
+    }
+}
+codeToErrorMap.set(0x177c, InvalidReceiptAccountError)
+nameToErrorMap.set('InvalidReceiptAccount', InvalidReceiptAccountError)
+
+/** DuplicateMessageId: Logical application message has already been processed */
+export class DuplicateMessageIdError extends ProgramError {
+    override readonly name: string = 'DuplicateMessageId'
+
+    readonly code: number = 0x177d // 6013
+
+    constructor(program: Program, cause?: Error) {
+        super('Logical application message has already been processed', program, cause)
+    }
+}
+codeToErrorMap.set(0x177d, DuplicateMessageIdError)
+nameToErrorMap.set('DuplicateMessageId', DuplicateMessageIdError)
+
+/** MissingClearAccounts: Missing LayerZero clear accounts */
+export class MissingClearAccountsError extends ProgramError {
+    override readonly name: string = 'MissingClearAccounts'
+
+    readonly code: number = 0x177e // 6014
+
+    constructor(program: Program, cause?: Error) {
+        super('Missing LayerZero clear accounts', program, cause)
+    }
+}
+codeToErrorMap.set(0x177e, MissingClearAccountsError)
+nameToErrorMap.set('MissingClearAccounts', MissingClearAccountsError)
 
 /**
  * Attempts to resolve a custom program error from the provided error code.

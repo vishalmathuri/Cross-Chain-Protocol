@@ -1,105 +1,221 @@
-import { publicKey, transactionBuilder } from '@metaplex-foundation/umi'
-import bs58 from 'bs58'
+import {
+    publicKey,
+    transactionBuilder,
+} from '@metaplex-foundation/umi'
+import { setComputeUnitLimit } from '@metaplex-foundation/mpl-toolbox'
 import { task, types } from 'hardhat/config'
-import { ActionType, HardhatRuntimeEnvironment } from 'hardhat/types'
-
-import { ChainType, endpointIdToChainType } from '@layerzerolabs/lz-definitions'
-import { Options } from '@layerzerolabs/lz-v2-utilities'
+import { ActionType } from 'hardhat/types'
+import {
+    arrayify,
+    hexZeroPad,
+    isAddress,
+    isHexString,
+    toUtf8Bytes,
+} from 'ethers/lib/utils'
 
 import { myoapp } from '../../lib/client'
-import { TransactionType, addComputeUnitInstructions, deriveConnection, getSolanaDeployment } from '../solana/index'
-import { getLayerZeroScanLink, isV2Testnet } from '../utils'
+import {
+    deriveConnection,
+    getSolanaDeployment,
+} from '../solana/index'
 
 interface TaskArguments {
     fromEid: number
     dstEid: number
+    receiver: string
     message: string
-    computeUnitPriceScaleFactor: number
-    contractName: string
 }
 
-const action: ActionType<TaskArguments> = async (
-    { fromEid, dstEid, message, computeUnitPriceScaleFactor, contractName },
-    hre: HardhatRuntimeEnvironment
-) => {
-    if (endpointIdToChainType(fromEid) === ChainType.SOLANA) {
-        await sendFromSolana(fromEid, dstEid, message, computeUnitPriceScaleFactor)
-    } else if (endpointIdToChainType(fromEid) === ChainType.EVM) {
-        await sendFromEvm(dstEid, message, contractName, hre)
-    } else {
-        throw new Error(`Unsupported ChainType for fromEid ${fromEid}`)
+function parseReceiver(value: string): Uint8Array {
+    // Ethereum address -> left-padded bytes32.
+    if (isAddress(value)) {
+        return Uint8Array.from(
+            arrayify(
+                hexZeroPad(value, 32)
+            )
+        )
     }
+
+    // Already bytes32.
+    if (
+        isHexString(value) &&
+        arrayify(value).length === 32
+    ) {
+        return Uint8Array.from(
+            arrayify(value)
+        )
+    }
+
+    throw new Error(
+        'receiver must be either a valid Ethereum address or a 32-byte hex value'
+    )
 }
 
-async function sendFromSolana(fromEid: number, dstEid: number, message: string, computeUnitPriceScaleFactor: number) {
-    const solanaEid = fromEid
-    const solanaDeployment = getSolanaDeployment(solanaEid)
-    const { connection, umi, umiWalletSigner } = await deriveConnection(solanaEid)
+const action: ActionType<TaskArguments> = async ({
+    fromEid,
+    dstEid,
+    receiver,
+    message,
+}) => {
+    const deployment =
+        getSolanaDeployment(fromEid)
 
-    const myoappInstance: myoapp.MyOApp = new myoapp.MyOApp(publicKey(solanaDeployment.programId))
-
-    const options = Options.newOptions().toBytes() // leaving empty, relying on enforced options instead
-
-    const { nativeFee } = await myoappInstance.quote(umi.rpc, umiWalletSigner.publicKey, {
-        dstEid,
-        message,
-        options,
-        payInLzToken: false,
-    })
-
-    console.log('🔖 Native fee quoted:', nativeFee.toString())
-
-    let txBuilder = transactionBuilder().add(
-        await myoappInstance.send(umi.rpc, umiWalletSigner.publicKey, {
-            dstEid,
-            message,
-            options,
-            nativeFee,
-        })
-    )
-    txBuilder = await addComputeUnitInstructions(
-        connection,
+    const {
         umi,
-        fromEid,
-        txBuilder,
         umiWalletSigner,
-        computeUnitPriceScaleFactor,
-        TransactionType.SendMessage
+    } = await deriveConnection(fromEid)
+
+    const oapp =
+        new myoapp.MyOApp(
+            publicKey(
+                deployment.programId
+            )
+        )
+
+    const applicationReceiver =
+        parseReceiver(receiver)
+
+    const data =
+        Uint8Array.from(
+            toUtf8Bytes(message)
+        )
+
+    // Empty caller options.
+    // The program combines these with configured
+    // enforced LayerZero options.
+    const options =
+        new Uint8Array()
+
+    console.log(
+        '🔍 Quoting LayerZero fee...'
     )
-    const tx = await txBuilder.sendAndConfirm(umi)
-    const txHash = bs58.encode(tx.signature)
 
-    console.log('✉️  Cross-chain message:', `"${message}"`, '→ endpointId', dstEid)
-    console.log('🧾 Transaction hash:', txHash)
-    console.log('🌐 Track transfer:', getLayerZeroScanLink(txHash, isV2Testnet(dstEid)))
+    const fee =
+        await oapp.quote(
+            umi.rpc,
+            umiWalletSigner.publicKey,
+            {
+                dstEid,
+                receiver:
+                    applicationReceiver,
+                data,
+                options,
+                payInLzToken: false,
+            }
+        )
+
+    console.log(
+        '🔖 Native fee:',
+        fee.nativeFee.toString()
+    )
+
+    const sendInstruction =
+        await oapp.send(
+            umi.rpc,
+
+            // Important:
+            // send() requires the complete UMI Signer,
+            // not only its public key.
+            umiWalletSigner,
+
+            {
+                dstEid,
+
+                receiver:
+                    applicationReceiver,
+
+                data,
+                options,
+
+                nativeFee:
+                    fee.nativeFee,
+
+                lzTokenFee: 0n,
+            }
+        )
+
+    let txBuilder =
+        transactionBuilder()
+
+    txBuilder = txBuilder.add(
+        setComputeUnitLimit(
+            umi,
+            {
+                units: 400_000,
+            }
+        )
+    )
+
+    txBuilder =
+        txBuilder.add(
+            sendInstruction
+        )
+
+    console.log(
+        '🚀 Sending structured cross-chain message...'
+    )
+
+    const result =
+        await txBuilder.sendAndConfirm(
+            umi
+        )
+
+    const {
+        default: bs58,
+    } = await import('bs58')
+
+    const signature =
+        bs58.encode(
+            result.signature
+        )
+
+    console.log(
+        '✅ Solana transaction:',
+        signature
+    )
+
+    console.log(
+        '📨 Destination EID:',
+        dstEid
+    )
+
+    console.log(
+        '👤 Application receiver:',
+        receiver
+    )
+
+    console.log(
+        '💬 Payload:',
+        message
+    )
 }
 
-async function sendFromEvm(dstEid: number, message: string, contractName: string, hre: HardhatRuntimeEnvironment) {
-    const signer = await hre.ethers.getNamedSigner('deployer')
-
-    // @ts-expect-error signer is fine
-    const myOApp = (await hre.ethers.getContract(contractName)).connect(signer)
-
-    const options = Options.newOptions().toHex().toString() // leaving empty, relying on enforced options instead
-
-    const [nativeFee] = await myOApp.quote(dstEid, message, options, false)
-
-    console.log('🔖 Native fee quoted:', nativeFee.toString())
-
-    const txResponse = await myOApp.send(dstEid, message, options, {
-        value: nativeFee,
-    })
-    const txReceipt = await txResponse.wait()
-
-    console.log('✉️  Cross-chain message:', `"${message}"`, '→ endpointId', dstEid)
-    console.log('🧾 Transaction hash:', txReceipt.transactionHash)
-    console.log('🌐 Track transfer:', getLayerZeroScanLink(txReceipt.transactionHash, isV2Testnet(dstEid)))
-}
-
-// Note: for testing reference, Optimism Sepolia's eid is 40232 and Solana Devnet's eid is 40168
-task('lz:oapp:send', 'Sends a string message cross-chain', action)
-    .addParam('fromEid', 'Source endpoint ID', undefined, types.int, false)
-    .addParam('dstEid', 'Destination endpoint ID', undefined, types.int, false)
-    .addParam('message', 'String message to send', undefined, types.string, false)
-    .addParam('computeUnitPriceScaleFactor', 'The compute unit price scale factor', 4, types.float, true) // only if fromEid is Solana
-    .addOptionalParam('contractName', 'Name of the OApp contract in deployments folder', 'MyOApp', types.string) // only if fromEid is EVM
+task(
+    'lz:oapp:send:solana',
+    'Send a structured message from Solana through the cross-chain protocol',
+    action
+)
+    .addParam(
+        'fromEid',
+        'Solana source LayerZero endpoint ID',
+        undefined,
+        types.int
+    )
+    .addParam(
+        'dstEid',
+        'Destination LayerZero endpoint ID',
+        undefined,
+        types.int
+    )
+    .addParam(
+        'receiver',
+        'Application receiver: EVM address or bytes32',
+        undefined,
+        types.string
+    )
+    .addParam(
+        'message',
+        'UTF-8 application payload',
+        undefined,
+        types.string
+    )
