@@ -54,8 +54,7 @@ impl LzReceiveTypesInfo<'_> {
 
         let required_accounts = if receive_types_account.alt == Pubkey::default() {
             vec![
-                receive_types_account.store
-                // You can include more accounts here if necessary
+                receive_types_account.store, // You can include more accounts here if necessary
             ]
         } else {
             vec![

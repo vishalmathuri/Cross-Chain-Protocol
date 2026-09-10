@@ -31,6 +31,8 @@ impl SetPeerConfig<'_> {
         // Update or create the peer config PDA
         match params.config.clone() {
             PeerConfigParam::PeerAddress(peer_address) => {
+                require!(peer_address != [0u8; 32], MyOAppError::InvalidPeerAddress);
+
                 ctx.accounts.peer.peer_address = peer_address;
             },
             PeerConfigParam::EnforcedOptions { send, send_and_call } => {
@@ -56,5 +58,8 @@ pub struct SetPeerConfigParams {
 pub enum PeerConfigParam {
     PeerAddress([u8; 32]),
     /// Optionally enforce specific send options for this peer
-    EnforcedOptions { send: Vec<u8>, send_and_call: Vec<u8> },
+    EnforcedOptions {
+        send: Vec<u8>,
+        send_and_call: Vec<u8>,
+    },
 }

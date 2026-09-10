@@ -1,29 +1,60 @@
-use crate::*;
+use anchor_lang::prelude::*;
 
 #[account]
+#[derive(InitSpace)]
 pub struct Store {
     pub admin: Pubkey,
-    pub bump: u8, // the bump of the store PDA
+    pub bump: u8,
     pub endpoint_program: Pubkey,
-    pub string: String, // This is specific to this string-passing example.
-    // You can add more fields as needed for your OApp implementation.
+
+    pub outbound_nonce: u64,
+    pub received_count: u64,
+
+    pub last_received_guid: [u8; 32],
+    pub last_received_message_id: [u8; 32],
 }
 
 impl Store {
-    pub const MAX_STRING_LENGTH: usize = 256;
-    pub const SIZE: usize = 8 + std::mem::size_of::<Self>() + Self::MAX_STRING_LENGTH;
+    pub const SIZE: usize = 8 + Self::INIT_SPACE;
 }
 
-// The LzReceiveTypesAccounts PDA is used by the Executor as a prerequisite to calling `lz_receive`.
 #[account]
+#[derive(InitSpace)]
+pub struct ReceivedMessage {
+    pub src_eid: u32,
+
+    pub source_oapp: [u8; 32],
+    pub guid: [u8; 32],
+    pub message_id: [u8; 32],
+
+    pub version: u8,
+    pub message_type: u8,
+    pub nonce: u64,
+
+    pub sender: [u8; 32],
+    pub receiver: [u8; 32],
+
+    pub timestamp: u64,
+
+    #[max_len(4096)]
+    pub data: Vec<u8>,
+
+    pub bump: u8,
+}
+
+impl ReceivedMessage {
+    pub const SIZE: usize = 8 + Self::INIT_SPACE;
+}
+
+/// The Executor uses this PDA to discover how to execute lz_receive.
+#[account]
+#[derive(InitSpace)]
 pub struct LzReceiveTypesAccounts {
-    pub store: Pubkey, // Note: This is used as your OApp address.
-    pub alt: Pubkey, // Note: in this example, we store a single ALT. You can modify this to store a Vec of Pubkeys too.
-    pub bump: u8, // the bump of the lz_receive_types_accounts PDA
+    pub store: Pubkey,
+    pub alt: Pubkey,
+    pub bump: u8,
 }
 
 impl LzReceiveTypesAccounts {
-    pub const SIZE: usize = 8 + std::mem::size_of::<Self>();
+    pub const SIZE: usize = 8 + Self::INIT_SPACE;
 }
-
-
