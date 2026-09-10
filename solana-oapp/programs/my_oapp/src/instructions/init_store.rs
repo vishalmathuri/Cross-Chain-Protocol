@@ -1,8 +1,17 @@
 use crate::*;
 use anchor_lang::{
-    prelude::*, solana_program::address_lookup_table::program::ID as ALT_PROGRAM_ID,
+    prelude::*,
+    solana_program::{address_lookup_table::program::ID as ALT_PROGRAM_ID, pubkey},
 };
+
 use oapp::endpoint::{instructions::RegisterOAppParams, ID as ENDPOINT_ID};
+
+/// Only this wallet may perform the one-time OApp initialization.
+///
+/// This prevents another wallet from front-running initialization
+/// and assigning itself as the Store admin.
+pub const INITIALIZATION_AUTHORITY: Pubkey =
+    pubkey!("FfWFHtyP9Z1bfqxeyxZhYZX7YXXgQRnGkkuMXfuLZepS");
 
 #[derive(Accounts)]
 #[instruction(params: InitStoreParams)]
@@ -39,9 +48,30 @@ pub struct InitStore<'info> {
 
 impl InitStore<'_> {
     pub fn apply(ctx: &mut Context<InitStore>, params: &InitStoreParams) -> Result<()> {
+        // ---------------------------------------------------------
+        // INITIALIZATION AUTHORITY
+        // ---------------------------------------------------------
+
+        // Only our configured deployment wallet can initialize
+        // the Store PDA.
+        require_keys_eq!(
+            ctx.accounts.payer.key(),
+            INITIALIZATION_AUTHORITY,
+            MyOAppError::UnauthorizedInitializer
+        );
+
+        // The initialized admin must also be the initializing signer.
         require_keys_eq!(params.admin, ctx.accounts.payer.key(), MyOAppError::AdminMustBePayer);
 
+        // ---------------------------------------------------------
+        // ENDPOINT VALIDATION
+        // ---------------------------------------------------------
+
         require_keys_eq!(params.endpoint, ENDPOINT_ID, MyOAppError::InvalidEndpoint);
+
+        // ---------------------------------------------------------
+        // STORE INITIALIZATION
+        // ---------------------------------------------------------
 
         let store = &mut ctx.accounts.store;
 
@@ -54,12 +84,20 @@ impl InitStore<'_> {
         store.last_received_guid = [0u8; 32];
         store.last_received_message_id = [0u8; 32];
 
+        // ---------------------------------------------------------
+        // LZ RECEIVE TYPES ACCOUNT
+        // ---------------------------------------------------------
+
         ctx.accounts.lz_receive_types_accounts.store = store.key();
 
         ctx.accounts.lz_receive_types_accounts.alt =
             ctx.accounts.alt.as_ref().map(|account| account.key()).unwrap_or_default();
 
         ctx.accounts.lz_receive_types_accounts.bump = ctx.bumps.lz_receive_types_accounts;
+
+        // ---------------------------------------------------------
+        // REGISTER OAPP WITH LAYERZERO ENDPOINT
+        // ---------------------------------------------------------
 
         let register_params = RegisterOAppParams { delegate: store.admin };
 

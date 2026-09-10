@@ -46,4 +46,7 @@ pub enum MyOAppError {
 
     #[msg("Missing LayerZero clear accounts")]
     MissingClearAccounts,
+
+    #[msg("Only the configured initialization authority may initialize the OApp")]
+    UnauthorizedInitializer,
 }

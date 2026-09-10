@@ -296,4 +296,21 @@ mod tests {
         // 224-byte head + 32-byte length + 32-byte padded data.
         assert_eq!(encoded.len(), 288);
     }
+
+    #[test]
+    fn test_message_id_solidity_vector() {
+        let src_eid = 40_161u32;
+        let source_router = [0x11u8; 32];
+        let nonce = 42u64;
+
+        let actual = compute_message_id(src_eid, source_router, nonce);
+
+        let expected = [
+            0x38, 0x75, 0x47, 0x7b, 0xb3, 0xfa, 0xe2, 0x7b, 0x92, 0xda, 0xd9, 0xc3, 0xf4, 0x47,
+            0x38, 0x97, 0x57, 0xc7, 0xdb, 0x59, 0xdc, 0x05, 0x66, 0x6f, 0xb6, 0x73, 0xfe, 0xc4,
+            0x49, 0xba, 0x7a, 0xb3,
+        ];
+
+        assert_eq!(actual, expected);
+    }
 }

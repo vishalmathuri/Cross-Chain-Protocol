@@ -207,6 +207,19 @@ export class MissingClearAccountsError extends ProgramError {
 codeToErrorMap.set(0x177e, MissingClearAccountsError)
 nameToErrorMap.set('MissingClearAccounts', MissingClearAccountsError)
 
+/** UnauthorizedInitializer: Only the configured initialization authority may initialize the OApp */
+export class UnauthorizedInitializerError extends ProgramError {
+    override readonly name: string = 'UnauthorizedInitializer'
+
+    readonly code: number = 0x177f // 6015
+
+    constructor(program: Program, cause?: Error) {
+        super('Only the configured initialization authority may initialize the OApp', program, cause)
+    }
+}
+codeToErrorMap.set(0x177f, UnauthorizedInitializerError)
+nameToErrorMap.set('UnauthorizedInitializer', UnauthorizedInitializerError)
+
 /**
  * Attempts to resolve a custom program error from the provided error code.
  * @category Errors
