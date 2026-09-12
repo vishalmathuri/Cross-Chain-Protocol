@@ -1,5 +1,5 @@
 use crate::*;
-use anchor_lang::{prelude::*, system_program};
+use anchor_lang::{prelude::*, solana_program::keccak, system_program};
 use oapp::{
     endpoint::{
         cpi::accounts::Clear, instructions::ClearParams, ConstructCPIContext, ID as ENDPOINT_ID,
@@ -73,6 +73,16 @@ impl LzReceive<'_> {
             MyOAppError::MissingClearAccounts
         );
 
+        // Compute compact audit metadata before constructing
+        // the permanent receipt account.
+        //
+        // msg_codec::validate() already guarantees data.len()
+        // is <= MAX_DATA_SIZE (4096), so this conversion is safe.
+        let data_len =
+            u32::try_from(message.data.len()).map_err(|_| error!(MyOAppError::PayloadTooLarge))?;
+
+        let data_hash = keccak::hash(&message.data).to_bytes();
+
         let store_bump = [ctx.accounts.store.bump];
 
         let store_seeds: &[&[u8]] = &[STORE_SEED, &store_bump];
@@ -81,8 +91,8 @@ impl LzReceive<'_> {
 
         // LayerZero transport-level replay protection.
         //
-        // If anything later in this instruction fails, Solana transaction
-        // atomicity rolls this CPI back as well.
+        // If anything later in this instruction fails,
+        // Solana transaction atomicity rolls this CPI back too.
         oapp::endpoint_cpi::clear(
             ENDPOINT_ID,
             ctx.accounts.store.key(),
@@ -140,7 +150,9 @@ impl LzReceive<'_> {
             receiver: message.receiver,
 
             timestamp: message.timestamp,
-            data: message.data,
+
+            data_hash,
+            data_len,
 
             bump: receipt_bump,
         };
@@ -159,6 +171,7 @@ impl LzReceive<'_> {
             store.received_count.checked_add(1).ok_or(MyOAppError::NonceOverflow)?;
 
         store.last_received_guid = params.guid;
+
         store.last_received_message_id = message_id;
 
         Ok(())

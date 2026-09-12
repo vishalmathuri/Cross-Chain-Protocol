@@ -36,8 +36,14 @@ pub struct ReceivedMessage {
 
     pub timestamp: u64,
 
-    #[max_len(4096)]
-    pub data: Vec<u8>,
+    /// Keccak-256 hash of the original application payload.
+    ///
+    /// Storing only the hash avoids allocating up to 4096 bytes
+    /// for every successfully processed cross-chain message.
+    pub data_hash: [u8; 32],
+
+    /// Original application payload length in bytes.
+    pub data_len: u32,
 
     pub bump: u8,
 }
