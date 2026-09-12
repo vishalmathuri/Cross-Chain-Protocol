@@ -6,7 +6,7 @@ import type {
 } from '@layerzerolabs/toolbox-hardhat'
 
 // =============================================================
-//                    ETHEREUM SEPOLIA OAPPS
+//                    ETHEREUM SEPOLIA
 // =============================================================
 
 const sepoliaRouter: OmniPointHardhat = {
@@ -14,40 +14,30 @@ const sepoliaRouter: OmniPointHardhat = {
     contractName: 'CrossChainRouter',
 }
 
-const sepoliaToken: OmniPointHardhat = {
-    eid: EndpointId.SEPOLIA_V2_TESTNET,
-    contractName: 'CrossChainToken',
+// =============================================================
+//                    SOLANA DEVNET
+// =============================================================
+//
+// LayerZero Solana OApp identity = Store PDA.
+// This is NOT the Anchor program ID.
+//
+
+const solanaOApp: OmniPointHardhat = {
+    eid: EndpointId.SOLANA_V2_TESTNET,
+    address: 'EJoipsNGChK4NPichwUjDXKTeCQ5t9TkgY8Vce7NAnv5',
 }
 
 // =============================================================
-//                    LAYERZERO CONFIG
+//                    MESSAGING GRAPH
 // =============================================================
 //
-// Solana is intentionally NOT added yet.
+// Keep connections empty until:
+// - Ethereum peer is configured
+// - Solana peer is configured
+// - enforced options / pathway config are reviewed
 //
-// After deploying the Rust/Anchor OApp we will obtain:
-//
-// 1. Solana OApp Store PDA
-// 2. Solana OFT Store address
-//
-// Those addresses will then be added here as:
-//
-// {
-//     eid: EndpointId.SOLANA_V2_TESTNET,
-//     address: '<SOLANA_OAPP_STORE_PDA>',
-// }
-//
-// and
-//
-// {
-//     eid: EndpointId.SOLANA_V2_TESTNET,
-//     address: '<SOLANA_OFT_STORE>',
-// }
-//
-// We will then create:
-//
-// Ethereum Router <-> Solana OApp
-// Ethereum OFT    <-> Solana OFT
+// CrossChainToken / Solana OFT will be added later after
+// bidirectional arbitrary messaging works.
 //
 
 const config: OAppOmniGraphHardhat = {
@@ -56,7 +46,7 @@ const config: OAppOmniGraphHardhat = {
             contract: sepoliaRouter,
         },
         {
-            contract: sepoliaToken,
+            contract: solanaOApp,
         },
     ],
 
