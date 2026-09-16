@@ -14,7 +14,9 @@
     "lint:sol": "solhint 'contracts/**/*.sol'",
     "test": "$npm_execpath run test:forge && $npm_execpath run test:hardhat",
     "test:forge": "forge test",
-    "test:hardhat": "hardhat test"
+    "test:hardhat": "hardhat test",
+    "verify:evm-to-solana": "node scripts/verify-sepolia-to-solana.js",
+    "verify:solana-to-evm": "node scripts/verify-solana-to-sepolia.js"
   },
   "resolutions": {
     "ethers": "^5.7.2",
