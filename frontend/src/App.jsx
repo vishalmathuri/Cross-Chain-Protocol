@@ -23,6 +23,8 @@ import {
 
 import './App.css'
 
+import MessageBridge from './components/MessageBridge'
+
 import {
   CCT_ABI,
   ETHEREUM,
@@ -168,6 +170,11 @@ function App() {
   const [amount, setAmount] =
     useState('')
 
+  const [
+    activeMode,
+    setActiveMode,
+  ] = useState('bridge')
+
   // ==========================================================
   // ETHEREUM STATE
   // ==========================================================
@@ -297,10 +304,6 @@ function App() {
   const isEvmToSolana =
     from === ETHEREUM &&
     to === SOLANA
-
-  const isSolanaToEvm =
-    from === SOLANA &&
-    to === ETHEREUM
 
   const routeKey =
     isEvmToSolana
@@ -1768,7 +1771,7 @@ function App() {
             </h1>
 
             <p>
-              LayerZero OFT Bridge
+              LayerZero Cross-Chain Protocol
             </p>
           </div>
         </div>
@@ -1831,20 +1834,81 @@ function App() {
           </span>
 
           <h2>
-            Bridge CCT across
+            Bridge tokens and send
             <span>
               {' '}
-              multiple chains.
+              cross-chain messages.
             </span>
           </h2>
 
           <p>
-            Transfer CrossChain
-            Token between Ethereum
-            Sepolia and Solana Devnet
-            through LayerZero V2.
+            Transfer CCT and send application messages between Ethereum Sepolia and Solana Devnet through LayerZero V2.
           </p>
         </section>
+
+        <div
+          className="protocol-tabs"
+          role="tablist"
+          aria-label="Protocol mode"
+        >
+          <button
+            type="button"
+            className={
+              activeMode ===
+              'bridge'
+                ? 'protocol-tab active'
+                : 'protocol-tab'
+            }
+            onClick={() =>
+              setActiveMode(
+                'bridge',
+              )
+            }
+          >
+            <span className="protocol-tab-icon">
+              ⇄
+            </span>
+
+            <span>
+              <strong>
+                Token Bridge
+              </strong>
+
+              <small>
+                Transfer CCT
+              </small>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={
+              activeMode ===
+              'message'
+                ? 'protocol-tab active'
+                : 'protocol-tab'
+            }
+            onClick={() =>
+              setActiveMode(
+                'message',
+              )
+            }
+          >
+            <span className="protocol-tab-icon">
+              ✦
+            </span>
+
+            <span>
+              <strong>
+                Messaging
+              </strong>
+
+              <small>
+                Send application data
+              </small>
+            </span>
+          </button>
+        </div>
 
         {/* ERRORS */}
 
@@ -1860,17 +1924,21 @@ function App() {
           </div>
         )}
 
-        {quoteError && (
-          <div className="wallet-alert error">
-            {quoteError}
-          </div>
-        )}
+        {activeMode ===
+          'bridge' &&
+          quoteError && (
+            <div className="wallet-alert error">
+              {quoteError}
+            </div>
+          )}
 
-        {bridgeError && (
-          <div className="wallet-alert error">
-            {bridgeError}
-          </div>
-        )}
+        {activeMode ===
+          'bridge' &&
+          bridgeError && (
+            <div className="wallet-alert error">
+              {bridgeError}
+            </div>
+          )}
 
         {evmAddress &&
           !isSepolia && (
@@ -1899,7 +1967,9 @@ function App() {
 
         {/* BRIDGE */}
 
-        <section className="bridge-layout">
+        {activeMode ===
+          'bridge' && (
+          <section className="bridge-layout">
           <div className="bridge-card">
             <div className="card-heading">
               <div>
@@ -2547,6 +2617,19 @@ function App() {
             </div>
           </aside>
         </section>
+        )}
+
+        {activeMode ===
+          'message' && (
+          <MessageBridge
+            evmAddress={evmAddress}
+            evmChainId={evmChainId}
+            solAddress={solAddress}
+            connectMetaMask={connectMetaMask}
+            switchToSepolia={switchToSepolia}
+            connectPhantom={connectPhantom}
+          />
+        )}
       </main>
 
       <footer>

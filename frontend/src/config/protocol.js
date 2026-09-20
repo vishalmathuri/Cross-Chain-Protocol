@@ -44,6 +44,18 @@ export const SOLANA = {
     'GTWBLZr6jumUR8NqSv6RdHya8WNUwxBcKs4GkSJgMjx6',
 }
 
+
+export const MESSAGING = {
+  ethereumRouter:
+    '0x355BD2bdF11D4B2528BC465422AB97EA9843f5a5',
+
+  solanaProgramId:
+    '86twc7j7pKySmWBV7pRBFkDkxqKs3bzJMjLCatjaKLSi',
+
+  solanaStore:
+    'EJoipsNGChK4NPichwUjDXKTeCQ5t9TkgY8Vce7NAnv5',
+}
+
 export const CCT_ABI = [
   'function balanceOf(address account) view returns (uint256)',
   'function decimals() view returns (uint8)',
