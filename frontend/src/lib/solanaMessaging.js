@@ -547,7 +547,6 @@ function toQuoteInstruction({
   storeUmi,
   peerUmi,
   endpointSetting,
-  senderUmi,
   senderWeb3,
   receiver,
   data,
@@ -701,7 +700,6 @@ export async function quoteSolanaMessageToEvm({
     umi,
     endpoint,
     senderUmi,
-    storeUmi,
     packetPath,
     msgLibProgram,
   } = context
