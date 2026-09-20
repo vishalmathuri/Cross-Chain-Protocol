@@ -23,6 +23,8 @@ import {
 
 import './App.css'
 
+import MessageBridge from './components/MessageBridge'
+
 import {
   CCT_ABI,
   ETHEREUM,
@@ -1768,7 +1770,7 @@ function App() {
             </h1>
 
             <p>
-              LayerZero OFT Bridge
+              LayerZero Cross-Chain Protocol
             </p>
           </div>
         </div>
@@ -1831,18 +1833,15 @@ function App() {
           </span>
 
           <h2>
-            Bridge CCT across
+            Bridge tokens and send
             <span>
               {' '}
-              multiple chains.
+              cross-chain messages.
             </span>
           </h2>
 
           <p>
-            Transfer CrossChain
-            Token between Ethereum
-            Sepolia and Solana Devnet
-            through LayerZero V2.
+            Transfer CCT and send application messages between Ethereum Sepolia and Solana Devnet through LayerZero V2.
           </p>
         </section>
 
@@ -2547,6 +2546,8 @@ function App() {
             </div>
           </aside>
         </section>
+
+        <MessageBridge />
       </main>
 
       <footer>
