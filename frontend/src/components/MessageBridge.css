@@ -1,17 +1,11 @@
 .message-section {
-  width: min(1180px, calc(100% - 32px));
-  margin: 0 auto 72px;
-  padding: 48px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 28px;
-  background: rgba(11, 16, 29, 0.72);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(18px);
+  width: 100%;
+  margin: 0;
 }
 
 .message-heading {
-  max-width: 720px;
-  margin-bottom: 28px;
+  max-width: 760px;
+  margin: 0 0 22px;
 }
 
 .message-kicker {
@@ -25,9 +19,9 @@
 }
 
 .message-heading h2 {
-  margin: 0 0 12px;
-  font-size: clamp(2rem, 4vw, 3.4rem);
-  line-height: 1;
+  margin: 0 0 10px;
+  font-size: clamp(1.65rem, 3vw, 2.25rem);
+  line-height: 1.08;
 }
 
 .message-heading p {
@@ -39,15 +33,29 @@
 
 .message-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.75fr);
-  gap: 24px;
+  grid-template-columns:
+    minmax(0, 1.65fr)
+    minmax(260px, 0.75fr);
+  gap: 22px;
+  align-items: start;
 }
 
 .message-card,
 .message-info {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.035);
+  border:
+    1px solid rgba(255, 255, 255, 0.08);
+
+  border-radius: 24px;
+
+  background:
+    rgba(19, 22, 33, 0.78);
+
+  backdrop-filter: blur(18px);
+
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.025);
 }
 
 .message-card {
@@ -262,10 +270,6 @@
 }
 
 @media (max-width: 860px) {
-  .message-section {
-    padding: 28px 20px;
-  }
-
   .message-grid {
     grid-template-columns: 1fr;
   }
@@ -281,12 +285,6 @@
 }
 
 @media (max-width: 560px) {
-  .message-section {
-    width: min(100% - 20px, 1180px);
-    padding: 22px 14px;
-    border-radius: 20px;
-  }
-
   .message-card {
     padding: 18px;
   }
