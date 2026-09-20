@@ -3,7 +3,9 @@ export const ETHEREUM = {
   shortName: 'Ethereum',
   networkName: 'Sepolia',
   symbol: 'ETH',
+
   eid: 40161,
+
   chainId: 11155111,
   chainIdHex: '0xaa36a7',
 
@@ -22,13 +24,15 @@ export const SOLANA = {
   shortName: 'Solana',
   networkName: 'Devnet',
   symbol: 'SOL',
+
   eid: 40168,
 
   rpcUrl:
+    import.meta.env.VITE_SOLANA_RPC_URL ||
     'https://api.devnet.solana.com',
 
   explorer:
-    'https://explorer.solana.com',
+    'https://solscan.io',
 
   mint:
     'JV3naK5XLVeFPknMmUUQvBKa8MWTnNRFUTYRCWEVcRU',

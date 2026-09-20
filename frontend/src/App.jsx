@@ -29,24 +29,41 @@ import {
   SOLANA,
 } from './config/protocol'
 
+import {
+  quoteEvmToSolana,
+  sendEvmToSolana,
+} from './lib/evmOft'
+
+import {
+  quoteSolanaToEvm,
+  sendSolanaToEvm,
+} from './lib/solanaOft'
+
 // ============================================================
 // WALLET HELPERS
 // ============================================================
 
 function getMetaMaskProvider() {
-  if (typeof window === 'undefined') {
+  if (
+    typeof window ===
+    'undefined'
+  ) {
     return null
   }
 
-  const ethereum = window.ethereum
+  const ethereum =
+    window.ethereum
 
   if (!ethereum) {
     return null
   }
 
   if (
-    Array.isArray(ethereum.providers) &&
-    ethereum.providers.length > 0
+    Array.isArray(
+      ethereum.providers,
+    ) &&
+    ethereum.providers.length >
+      0
   ) {
     const metamask =
       ethereum.providers.find(
@@ -71,20 +88,18 @@ function getMetaMaskProvider() {
 }
 
 function getPhantomProvider() {
-  if (typeof window === 'undefined') {
+  if (
+    typeof window ===
+    'undefined'
+  ) {
     return null
   }
 
-  if (
-    window.phantom?.solana?.isPhantom
-  ) {
-    return window.phantom.solana
-  }
+  const phantom =
+    window.phantom?.solana
 
-  if (
-    window.solana?.isPhantom
-  ) {
-    return window.solana
+  if (phantom?.isPhantom) {
+    return phantom
   }
 
   return null
@@ -103,6 +118,40 @@ function shortenAddress(
     0,
     start,
   )}...${address.slice(-end)}`
+}
+
+function parseDisplayBalance(
+  balance,
+) {
+  const value =
+    Number(
+      String(
+        balance || '0',
+      ).replaceAll(',', ''),
+    )
+
+  return Number.isFinite(value)
+    ? value
+    : 0
+}
+
+function formatQuoteFee(
+  value,
+) {
+  if (!value) {
+    return '--'
+  }
+
+  const number =
+    Number(value)
+
+  if (
+    !Number.isFinite(number)
+  ) {
+    return value
+  }
+
+  return number.toFixed(6)
 }
 
 // ============================================================
@@ -197,73 +246,182 @@ function App() {
     setPhantomError,
   ] = useState('')
 
+  // ==========================================================
+  // CROSS-CHAIN STATE
+  // ==========================================================
+
+  const [
+    quoteLoading,
+    setQuoteLoading,
+  ] = useState(false)
+
+  const [
+    quote,
+    setQuote,
+  ] = useState(null)
+
+  const [
+    quoteError,
+    setQuoteError,
+  ] = useState('')
+
+  const [
+    sendLoading,
+    setSendLoading,
+  ] = useState(false)
+
+  const [
+    bridgeResult,
+    setBridgeResult,
+  ] = useState(null)
+
+  const [
+    bridgeError,
+    setBridgeError,
+  ] = useState('')
+
+  const [
+    deliveryStatus,
+    setDeliveryStatus,
+  ] = useState('idle')
+
+  const [
+    deliveredAmount,
+    setDeliveredAmount,
+  ] = useState('')
+
   const isSepolia =
-    evmChainId === ETHEREUM.chainId
+    evmChainId ===
+    ETHEREUM.chainId
+
+  const isEvmToSolana =
+    from === ETHEREUM &&
+    to === SOLANA
+
+  const isSolanaToEvm =
+    from === SOLANA &&
+    to === ETHEREUM
+
+  const routeKey =
+    isEvmToSolana
+      ? 'evm-sol'
+      : 'sol-evm'
+
+  // ==========================================================
+  // RESET TRANSFER
+  // ==========================================================
+
+  const resetTransferState =
+    () => {
+      setQuote(null)
+
+      setQuoteError('')
+
+      setBridgeError('')
+
+      setBridgeResult(null)
+
+      setDeliveryStatus(
+        'idle',
+      )
+
+      setDeliveredAmount('')
+    }
+
+  // ==========================================================
+  // INPUT
+  // ==========================================================
+
+  const handleAmountChange =
+    (event) => {
+      const value =
+        event.target.value
+
+      setAmount(value)
+
+      setQuote(null)
+
+      setQuoteError('')
+
+      setBridgeError('')
+
+      if (
+        deliveryStatus ===
+          'delivered' ||
+        deliveryStatus ===
+          'timeout'
+      ) {
+        setBridgeResult(null)
+
+        setDeliveryStatus(
+          'idle',
+        )
+
+        setDeliveredAmount('')
+      }
+    }
 
   // ==========================================================
   // SWITCH DIRECTION
   // ==========================================================
 
-  const switchDirection = () => {
-    setFrom(to)
-    setTo(from)
-    setAmount('')
-  }
-
-  // ==========================================================
-  // ETHEREUM DATA
-  // ==========================================================
-
-  const loadEthereumAccount =
-    useCallback(async (address) => {
-      const ethereum =
-        getMetaMaskProvider()
-
-      if (!ethereum || !address) {
+  const switchDirection =
+    () => {
+      if (
+        sendLoading ||
+        deliveryStatus ===
+          'pending'
+      ) {
         return
       }
 
-      try {
-        setEthBalanceLoading(true)
-        setWalletError('')
+      setFrom(to)
 
-        const chainIdHex =
-          await ethereum.request({
-            method: 'eth_chainId',
-          })
+      setTo(from)
 
-        const chainId =
-          Number.parseInt(
-            chainIdHex,
-            16,
-          )
+      setAmount('')
 
-        setEvmChainId(chainId)
+      resetTransferState()
+    }
+
+  // ==========================================================
+  // CURRENT ETHEREUM CCT BALANCE
+  // ==========================================================
+
+  const getCurrentEthereumCctBalance =
+    useCallback(
+      async (address) => {
+        const ethereum =
+          getMetaMaskProvider()
+
+        if (
+          !ethereum ||
+          !address
+        ) {
+          return {
+            amount: 0,
+            display: '0',
+          }
+        }
 
         const provider =
           new BrowserProvider(
             ethereum,
           )
 
-        const nativeBalance =
-          await provider.getBalance(
-            address,
-          )
-
-        setEthBalance(
-          Number(
-            formatEther(
-              nativeBalance,
-            ),
-          ).toFixed(4),
-        )
+        const network =
+          await provider
+            .getNetwork()
 
         if (
-          chainId !==
+          Number(
+            network.chainId,
+          ) !==
           ETHEREUM.chainId
         ) {
-          setEthCctBalance('0')
-          return
+          throw new Error(
+            'MetaMask must remain on Ethereum Sepolia.',
+          )
         }
 
         const token =
@@ -274,42 +432,140 @@ function App() {
           )
 
         const [
-          tokenBalance,
+          balance,
           decimals,
-        ] = await Promise.all([
-          token.balanceOf(address),
-          token.decimals(),
-        ])
+        ] =
+          await Promise.all([
+            token.balanceOf(
+              address,
+            ),
 
-        const formatted =
+            token.decimals(),
+          ])
+
+        const display =
           formatUnits(
-            tokenBalance,
+            balance,
             decimals,
           )
 
-        setEthCctBalance(
-          Number(
-            formatted,
-          ).toLocaleString(
-            undefined,
-            {
-              maximumFractionDigits: 6,
-            },
-          ),
-        )
-      } catch (error) {
-        console.error(
-          'Ethereum wallet error:',
-          error,
-        )
+        return {
+          amount:
+            Number(display),
 
-        setWalletError(
-          'MetaMask connected, but Ethereum balances could not be loaded.',
-        )
-      } finally {
-        setEthBalanceLoading(false)
-      }
-    }, [])
+          display,
+        }
+      },
+      [],
+    )
+
+  // ==========================================================
+  // LOAD ETHEREUM
+  // ==========================================================
+
+  const loadEthereumAccount =
+    useCallback(
+      async (address) => {
+        const ethereum =
+          getMetaMaskProvider()
+
+        if (
+          !ethereum ||
+          !address
+        ) {
+          return
+        }
+
+        try {
+          setEthBalanceLoading(
+            true,
+          )
+
+          setWalletError('')
+
+          const chainIdHex =
+            await ethereum.request(
+              {
+                method:
+                  'eth_chainId',
+              },
+            )
+
+          const chainId =
+            Number.parseInt(
+              chainIdHex,
+              16,
+            )
+
+          setEvmChainId(
+            chainId,
+          )
+
+          const provider =
+            new BrowserProvider(
+              ethereum,
+            )
+
+          const nativeBalance =
+            await provider
+              .getBalance(
+                address,
+              )
+
+          setEthBalance(
+            Number(
+              formatEther(
+                nativeBalance,
+              ),
+            ).toFixed(4),
+          )
+
+          if (
+            chainId !==
+            ETHEREUM.chainId
+          ) {
+            setEthCctBalance(
+              '0',
+            )
+
+            return
+          }
+
+          const current =
+            await getCurrentEthereumCctBalance(
+              address,
+            )
+
+          setEthCctBalance(
+            Number(
+              current.display,
+            ).toLocaleString(
+              undefined,
+              {
+                maximumFractionDigits:
+                  6,
+              },
+            ),
+          )
+        } catch (error) {
+          console.error(
+            'Ethereum wallet error:',
+            error,
+          )
+
+          setWalletError(
+            'MetaMask connected, but Ethereum balances could not be loaded.',
+          )
+        } finally {
+          setEthBalanceLoading(
+            false,
+          )
+        }
+      },
+      [
+        getCurrentEthereumCctBalance,
+      ],
+    )
 
   // ==========================================================
   // CONNECT METAMASK
@@ -326,24 +582,33 @@ function App() {
         setWalletError(
           'MetaMask was not detected.',
         )
+
         return
       }
 
       try {
-        setWalletLoading(true)
+        setWalletLoading(
+          true,
+        )
 
         let accounts =
-          await ethereum.request({
-            method:
-              'eth_accounts',
-          })
-
-        if (!accounts.length) {
-          accounts =
-            await ethereum.request({
+          await ethereum.request(
+            {
               method:
-                'eth_requestAccounts',
-            })
+                'eth_accounts',
+            },
+          )
+
+        if (
+          !accounts.length
+        ) {
+          accounts =
+            await ethereum.request(
+              {
+                method:
+                  'eth_requestAccounts',
+              },
+            )
         }
 
         const address =
@@ -355,9 +620,13 @@ function App() {
           )
         }
 
-        setEvmAddress(address)
+        setEvmAddress(
+          address,
+        )
 
-        setWalletLoading(false)
+        setWalletLoading(
+          false,
+        )
 
         await loadEthereumAccount(
           address,
@@ -369,13 +638,16 @@ function App() {
         )
 
         setWalletError(
-          error?.code === 4001
+          error?.code ===
+            4001
             ? 'MetaMask connection was rejected.'
             : error?.message ||
                 'Unable to connect MetaMask.',
         )
 
-        setWalletLoading(false)
+        setWalletLoading(
+          false,
+        )
       }
     }
 
@@ -392,70 +664,78 @@ function App() {
         setWalletError(
           'MetaMask was not detected.',
         )
+
         return
       }
 
       try {
         setWalletError('')
 
-        await ethereum.request({
-          method:
-            'wallet_switchEthereumChain',
+        await ethereum.request(
+          {
+            method:
+              'wallet_switchEthereumChain',
 
-          params: [
-            {
-              chainId:
-                ETHEREUM.chainIdHex,
-            },
-          ],
-        })
-
-        if (evmAddress) {
-          await loadEthereumAccount(
-            evmAddress,
-          )
-        }
+            params: [
+              {
+                chainId:
+                  ETHEREUM.chainIdHex,
+              },
+            ],
+          },
+        )
       } catch (error) {
         if (
-          error?.code === 4902
+          error?.code ===
+          4902
         ) {
           try {
-            await ethereum.request({
-              method:
-                'wallet_addEthereumChain',
+            await ethereum.request(
+              {
+                method:
+                  'wallet_addEthereumChain',
 
-              params: [
-                {
-                  chainId:
-                    ETHEREUM.chainIdHex,
+                params: [
+                  {
+                    chainId:
+                      ETHEREUM.chainIdHex,
 
-                  chainName:
-                    'Ethereum Sepolia',
+                    chainName:
+                      'Ethereum Sepolia',
 
-                  nativeCurrency: {
-                    name:
-                      'Sepolia ETH',
-                    symbol:
-                      'ETH',
-                    decimals:
-                      18,
+                    nativeCurrency:
+                      {
+                        name:
+                          'Sepolia ETH',
+
+                        symbol:
+                          'ETH',
+
+                        decimals:
+                          18,
+                      },
+
+                    rpcUrls:
+                      [
+                        ETHEREUM.rpcUrl,
+                      ],
+
+                    blockExplorerUrls:
+                      [
+                        ETHEREUM.explorer,
+                      ],
                   },
-
-                  rpcUrls: [
-                    ETHEREUM.rpcUrl,
-                  ],
-
-                  blockExplorerUrls: [
-                    ETHEREUM.explorer,
-                  ],
-                },
-              ],
-            })
+                ],
+              },
+            )
 
             return
-          } catch (addError) {
+          } catch (
+            addError
+          ) {
             setWalletError(
-              addError?.message ||
+              addError
+                ?.message ||
                 'Unable to add Sepolia.',
             )
 
@@ -471,49 +751,22 @@ function App() {
     }
 
   // ==========================================================
-  // SOLANA DATA
+  // CURRENT SOLANA CCT BALANCE
   // ==========================================================
 
-  const loadSolanaAccount =
-    useCallback(async (address) => {
-      if (!address) {
-        return
-      }
-
-      try {
-        setSolBalanceLoading(true)
-        setPhantomError('')
-
+  const getCurrentSolanaCctBalance =
+    useCallback(
+      async (address) => {
         const connection =
           new Connection(
             SOLANA.rpcUrl,
             'confirmed',
           )
 
-        const publicKey =
+        const owner =
           new PublicKey(
             address,
           )
-
-        // ---------------------------
-        // SOL balance
-        // ---------------------------
-
-        const lamports =
-          await connection.getBalance(
-            publicKey,
-          )
-
-        setSolBalance(
-          (
-            lamports /
-            LAMPORTS_PER_SOL
-          ).toFixed(4),
-        )
-
-        // ---------------------------
-        // CCT ATA
-        // ---------------------------
 
         const mint =
           new PublicKey(
@@ -523,109 +776,704 @@ function App() {
         const ata =
           getAssociatedTokenAddressSync(
             mint,
-            publicKey,
+            owner,
           )
-
-        setSolAta(
-          ata.toBase58(),
-        )
-
-        // ---------------------------
-        // CCT balance
-        // ---------------------------
 
         const accountInfo =
-          await connection.getAccountInfo(
-            ata,
-          )
+          await connection
+            .getAccountInfo(
+              ata,
+            )
 
         if (!accountInfo) {
-          setSolCctBalance('0')
-          return
+          return {
+            amount: 0,
+            display: '0',
+            ata:
+              ata.toBase58(),
+          }
         }
 
-        const tokenBalance =
+        const result =
           await connection
             .getTokenAccountBalance(
               ata,
             )
 
-        setSolCctBalance(
-          tokenBalance
-            .value
+        const display =
+          result.value
             .uiAmountString ||
-            '0',
-        )
-      } catch (error) {
-        console.error(
-          'Solana balance error:',
-          error,
-        )
+          '0'
 
-        setPhantomError(
-          'Phantom connected, but Solana balances could not be loaded.',
-        )
-      } finally {
-        setSolBalanceLoading(false)
-      }
-    }, [])
+        return {
+          amount:
+            Number(display),
+
+          display,
+
+          ata:
+            ata.toBase58(),
+        }
+      },
+      [],
+    )
+
+  // ==========================================================
+  // LOAD SOLANA
+  // ==========================================================
+
+  const loadSolanaAccount =
+    useCallback(
+      async (address) => {
+        if (!address) {
+          return
+        }
+
+        try {
+          setSolBalanceLoading(
+            true,
+          )
+
+          setPhantomError('')
+
+          const connection =
+            new Connection(
+              SOLANA.rpcUrl,
+              'confirmed',
+            )
+
+          const publicKey =
+            new PublicKey(
+              address,
+            )
+
+          const lamports =
+            await connection
+              .getBalance(
+                publicKey,
+              )
+
+          setSolBalance(
+            (
+              lamports /
+              LAMPORTS_PER_SOL
+            ).toFixed(4),
+          )
+
+          const current =
+            await getCurrentSolanaCctBalance(
+              address,
+            )
+
+          setSolAta(
+            current.ata,
+          )
+
+          setSolCctBalance(
+            current.display,
+          )
+        } catch (error) {
+          console.error(
+            'Solana wallet error:',
+            error,
+          )
+
+          setPhantomError(
+            'Phantom connected, but Solana balances could not be loaded.',
+          )
+        } finally {
+          setSolBalanceLoading(
+            false,
+          )
+        }
+      },
+      [
+        getCurrentSolanaCctBalance,
+      ],
+    )
 
   // ==========================================================
   // CONNECT PHANTOM
   // ==========================================================
 
   const connectPhantom =
-    async () => {
-      setPhantomError('')
+  async () => {
+    setPhantomError('')
 
-      const phantom =
-        getPhantomProvider()
+    const phantom =
+      getPhantomProvider()
 
-      if (!phantom) {
-        setPhantomError(
-          'Phantom was not detected. Install or enable the Phantom browser extension.',
+    if (!phantom) {
+      setPhantomError(
+        'Phantom was not detected. Install or enable the Phantom extension.',
+      )
+
+      return
+    }
+
+    try {
+      setPhantomLoading(true)
+
+      const timeout =
+        new Promise(
+          (_, reject) => {
+            setTimeout(
+              () => {
+                reject(
+                  new Error(
+                    'Phantom did not respond. Unlock or restart the Phantom extension and try again.',
+                  ),
+                )
+              },
+              10000,
+            )
+          },
         )
-        return
+
+      const connection =
+        phantom.publicKey
+          ? {
+              publicKey:
+                phantom.publicKey,
+            }
+          : await Promise.race([
+              phantom.connect(),
+              timeout,
+            ])
+
+      const address =
+        connection?.publicKey
+          ?.toString()
+
+      if (!address) {
+        throw new Error(
+          'Phantom did not return a Solana address.',
+        )
       }
 
-      try {
-        setPhantomLoading(true)
+      setSolAddress(
+        address,
+      )
 
-        const response =
-          await phantom.connect()
+      await loadSolanaAccount(
+        address,
+      )
+    } catch (error) {
+      console.error(
+        'Phantom connection error:',
+        error,
+      )
 
-        const address =
-          response.publicKey
-            .toString()
+      setPhantomError(
+        error?.code === 4001
+          ? 'Phantom connection was rejected.'
+          : error?.message ||
+              'Unable to connect Phantom.',
+      )
+    } finally {
+      setPhantomLoading(false)
+    }
+  }
 
-        setSolAddress(
-          address,
+  // ==========================================================
+  // VALIDATE BRIDGE
+  // ==========================================================
+
+  const validateBridge =
+    () => {
+      if (!evmAddress) {
+        throw new Error(
+          'Connect MetaMask first.',
         )
+      }
 
-        setPhantomLoading(false)
-
-        await loadSolanaAccount(
-          address,
+      if (!isSepolia) {
+        throw new Error(
+          'Switch MetaMask to Ethereum Sepolia.',
         )
-      } catch (error) {
-        console.error(
-          'Phantom connection error:',
-          error,
-        )
+      }
 
-        setPhantomError(
-          error?.code === 4001
-            ? 'Phantom connection was rejected.'
-            : error?.message ||
-                'Unable to connect Phantom.',
+      if (!solAddress) {
+        throw new Error(
+          'Connect Phantom first.',
         )
+      }
 
-        setPhantomLoading(false)
+      if (!amount) {
+        throw new Error(
+          'Enter a CCT amount.',
+        )
+      }
+
+      const numeric =
+        Number(amount)
+
+      if (
+        !Number.isFinite(
+          numeric,
+        ) ||
+        numeric <= 0
+      ) {
+        throw new Error(
+          'Enter a valid CCT amount.',
+        )
+      }
+
+      const sourceBalance =
+        isEvmToSolana
+          ? parseDisplayBalance(
+              ethCctBalance,
+            )
+          : parseDisplayBalance(
+              solCctBalance,
+            )
+
+      if (
+        numeric >
+        sourceBalance
+      ) {
+        throw new Error(
+          `Insufficient ${
+            isEvmToSolana
+              ? 'Ethereum'
+              : 'Solana'
+          } CCT balance.`,
+        )
       }
     }
 
   // ==========================================================
-  // METAMASK RESTORE + EVENTS
+  // QUOTE BOTH DIRECTIONS
+  // ==========================================================
+
+  const quoteBridgeFee =
+    async () => {
+      setQuoteError('')
+
+      setBridgeError('')
+
+      setBridgeResult(null)
+
+      setQuote(null)
+
+      try {
+        validateBridge()
+
+        setQuoteLoading(
+          true,
+        )
+
+        if (
+          isEvmToSolana
+        ) {
+          const result =
+            await quoteEvmToSolana(
+              {
+                ethereumProvider:
+                  getMetaMaskProvider(),
+
+                amount,
+
+                solanaRecipient:
+                  solAddress,
+              },
+            )
+
+          setQuote({
+            route:
+              'evm-sol',
+
+            value:
+              result.nativeFeeEth,
+
+            symbol:
+              'ETH',
+          })
+        } else {
+          const result =
+            await quoteSolanaToEvm(
+              {
+                phantomProvider:
+                  getPhantomProvider(),
+
+                amount,
+
+                evmRecipient:
+                  evmAddress,
+              },
+            )
+
+          setQuote({
+            route:
+              'sol-evm',
+
+            value:
+              result.nativeFeeSol,
+
+            symbol:
+              'SOL',
+          })
+        }
+      } catch (error) {
+        console.error(
+          'LayerZero quote error:',
+          error,
+        )
+
+        setQuoteError(
+          error?.shortMessage ||
+            error?.reason ||
+            error?.message ||
+            'Unable to quote LayerZero fee.',
+        )
+      } finally {
+        setQuoteLoading(
+          false,
+        )
+      }
+    }
+
+  // ==========================================================
+  // WAIT FOR DESTINATION
+  // ==========================================================
+
+  const waitForDelivery =
+    async ({
+      destination,
+      address,
+      previousBalance,
+      sentAmount,
+    }) => {
+      setDeliveryStatus(
+        'pending',
+      )
+
+      const expected =
+        Number(
+          previousBalance,
+        ) +
+        Number(
+          sentAmount,
+        )
+
+      const maxAttempts =
+        60
+
+      for (
+        let attempt = 1;
+        attempt <= maxAttempts;
+        attempt += 1
+      ) {
+        await new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              5000,
+            ),
+        )
+
+        try {
+          const current =
+            destination ===
+            'solana'
+              ? await getCurrentSolanaCctBalance(
+                  address,
+                )
+              : await getCurrentEthereumCctBalance(
+                  address,
+                )
+
+          if (
+            destination ===
+            'solana'
+          ) {
+            setSolCctBalance(
+              current.display,
+            )
+          } else {
+            setEthCctBalance(
+              Number(
+                current.display,
+              ).toLocaleString(
+                undefined,
+                {
+                  maximumFractionDigits:
+                    6,
+                },
+              ),
+            )
+          }
+
+          if (
+            current.amount +
+              0.000000001 >=
+            expected
+          ) {
+            setDeliveryStatus(
+              'delivered',
+            )
+
+            setDeliveredAmount(
+              sentAmount,
+            )
+
+            if (
+              destination ===
+              'solana'
+            ) {
+              await loadSolanaAccount(
+                address,
+              )
+            } else {
+              await loadEthereumAccount(
+                address,
+              )
+            }
+
+            return
+          }
+        } catch (error) {
+          console.warn(
+            `Delivery check ${attempt}/${maxAttempts}:`,
+            error,
+          )
+        }
+      }
+
+      setDeliveryStatus(
+        'timeout',
+      )
+    }
+
+  // ==========================================================
+  // SEND BOTH DIRECTIONS
+  // ==========================================================
+
+  const bridgeCurrentRoute =
+    async () => {
+      setBridgeError('')
+
+      setBridgeResult(null)
+
+      try {
+        validateBridge()
+
+        if (
+          !quote ||
+          quote.route !==
+            routeKey
+        ) {
+          throw new Error(
+            'Quote the LayerZero fee again before sending.',
+          )
+        }
+
+        const confirmed =
+          window.confirm(
+            [
+              `Bridge ${amount} CCT?`,
+              '',
+              `From: ${from.name}`,
+              '',
+              `To: ${to.name}`,
+              '',
+              `LayerZero fee: ~${formatQuoteFee(
+                quote.value,
+              )} ${quote.symbol}`,
+              '',
+              isEvmToSolana
+                ? 'MetaMask will ask you to approve the transaction.'
+                : 'Phantom will ask you to approve the transaction.',
+            ].join('\n'),
+          )
+
+        if (!confirmed) {
+          return
+        }
+
+        setSendLoading(
+          true,
+        )
+
+        setDeliveryStatus(
+          'idle',
+        )
+
+        setDeliveredAmount('')
+
+        // ---------------------------------
+        // ETHEREUM -> SOLANA
+        // ---------------------------------
+
+        if (
+          isEvmToSolana
+        ) {
+          const before =
+            await getCurrentSolanaCctBalance(
+              solAddress,
+            )
+
+          const result =
+            await sendEvmToSolana(
+              {
+                ethereumProvider:
+                  getMetaMaskProvider(),
+
+                evmAddress,
+
+                amount,
+
+                solanaRecipient:
+                  solAddress,
+              },
+            )
+
+          setBridgeResult({
+            ...result,
+
+            explorer:
+              result.etherscan,
+
+            explorerName:
+              'Etherscan',
+
+            source:
+              'Ethereum Sepolia',
+
+            destination:
+              'Solana Devnet',
+          })
+
+          await loadEthereumAccount(
+            evmAddress,
+          )
+
+          setQuote(null)
+
+          waitForDelivery({
+            destination:
+              'solana',
+
+            address:
+              solAddress,
+
+            previousBalance:
+              before.amount,
+
+            sentAmount:
+              amount,
+          })
+
+          return
+        }
+
+        // ---------------------------------
+        // SOLANA -> ETHEREUM
+        // ---------------------------------
+
+        const before =
+          await getCurrentEthereumCctBalance(
+            evmAddress,
+          )
+
+        const result =
+          await sendSolanaToEvm(
+            {
+              phantomProvider:
+                getPhantomProvider(),
+
+              amount,
+
+              evmRecipient:
+                evmAddress,
+            },
+          )
+
+        setBridgeResult({
+          ...result,
+
+          explorer:
+            result.solscan,
+
+          explorerName:
+            'Solscan',
+
+          source:
+            'Solana Devnet',
+
+          destination:
+            'Ethereum Sepolia',
+        })
+
+        // Source burn should
+        // already be visible.
+        await loadSolanaAccount(
+          solAddress,
+        )
+
+        setQuote(null)
+
+        waitForDelivery({
+          destination:
+            'ethereum',
+
+          address:
+            evmAddress,
+
+          previousBalance:
+            before.amount,
+
+          sentAmount:
+            amount,
+        })
+      } catch (error) {
+        console.error(
+          'Bridge transaction error:',
+          error,
+        )
+
+        const rejected =
+          error?.code ===
+            4001 ||
+          error?.code ===
+            'ACTION_REJECTED'
+
+        setBridgeError(
+          rejected
+            ? `${
+                isEvmToSolana
+                  ? 'MetaMask'
+                  : 'Phantom'
+              } transaction was rejected.`
+            : error?.shortMessage ||
+                error?.reason ||
+                error?.message ||
+                'Bridge transaction failed.',
+        )
+
+        setDeliveryStatus(
+          'idle',
+        )
+      } finally {
+        setSendLoading(
+          false,
+        )
+      }
+    }
+
+  // ==========================================================
+  // NEW TRANSFER
+  // ==========================================================
+
+  const startAnotherTransfer =
+    () => {
+      setAmount('')
+
+      resetTransferState()
+    }
+
+  // ==========================================================
+  // METAMASK RESTORE
   // ==========================================================
 
   useEffect(() => {
@@ -636,17 +1484,20 @@ function App() {
       return
     }
 
-    const restoreWallet =
+    const restore =
       async () => {
         try {
           const accounts =
-            await ethereum.request({
-              method:
-                'eth_accounts',
-            })
+            await ethereum.request(
+              {
+                method:
+                  'eth_accounts',
+              },
+            )
 
           if (
-            accounts.length > 0
+            accounts.length >
+            0
           ) {
             const address =
               accounts[0]
@@ -667,13 +1518,22 @@ function App() {
         }
       }
 
-    const handleAccountsChanged =
+    const accountsChanged =
       async (accounts) => {
-        if (!accounts.length) {
+        if (
+          !accounts.length
+        ) {
           setEvmAddress('')
-          setEvmChainId(null)
+
+          setEvmChainId(
+            null,
+          )
+
           setEthBalance('0')
-          setEthCctBalance('0')
+
+          setEthCctBalance(
+            '0',
+          )
 
           return
         }
@@ -685,55 +1545,64 @@ function App() {
           address,
         )
 
+        resetTransferState()
+
         await loadEthereumAccount(
           address,
         )
       }
 
-    const handleChainChanged =
+    const chainChanged =
       async () => {
         const accounts =
-          await ethereum.request({
-            method:
-              'eth_accounts',
-          })
+          await ethereum.request(
+            {
+              method:
+                'eth_accounts',
+            },
+          )
 
         if (
-          accounts.length > 0
+          accounts.length >
+          0
         ) {
+          resetTransferState()
+
           await loadEthereumAccount(
             accounts[0],
           )
         }
       }
 
-    restoreWallet()
+    restore()
 
     ethereum.on?.(
       'accountsChanged',
-      handleAccountsChanged,
+      accountsChanged,
     )
 
     ethereum.on?.(
       'chainChanged',
-      handleChainChanged,
+      chainChanged,
     )
 
     return () => {
       ethereum.removeListener?.(
         'accountsChanged',
-        handleAccountsChanged,
+        accountsChanged,
       )
 
       ethereum.removeListener?.(
         'chainChanged',
-        handleChainChanged,
+        chainChanged,
       )
     }
-  }, [loadEthereumAccount])
+  }, [
+    loadEthereumAccount,
+  ])
 
   // ==========================================================
-  // PHANTOM RESTORE + EVENTS
+  // PHANTOM RESTORE
   // ==========================================================
 
   useEffect(() => {
@@ -744,13 +1613,16 @@ function App() {
       return
     }
 
-    const restorePhantom =
+    const restore =
       async () => {
         try {
           const response =
-            await phantom.connect({
-              onlyIfTrusted: true,
-            })
+            await phantom.connect(
+              {
+                onlyIfTrusted:
+                  true,
+              },
+            )
 
           if (
             response?.publicKey
@@ -768,17 +1640,24 @@ function App() {
             )
           }
         } catch {
-          // Normal when the user has not
-          // previously connected Phantom.
+          // Normal when Phantom
+          // is not trusted yet.
         }
       }
 
-    const handleAccountChanged =
-      async (publicKey) => {
+    const accountChanged =
+      async (
+        publicKey,
+      ) => {
         if (!publicKey) {
           setSolAddress('')
+
           setSolBalance('0')
-          setSolCctBalance('0')
+
+          setSolCctBalance(
+            '0',
+          )
+
           setSolAta('')
 
           return
@@ -791,46 +1670,57 @@ function App() {
           address,
         )
 
+        resetTransferState()
+
         await loadSolanaAccount(
           address,
         )
       }
 
-    const handleDisconnect =
+    const disconnected =
       () => {
         setSolAddress('')
+
         setSolBalance('0')
-        setSolCctBalance('0')
+
+        setSolCctBalance(
+          '0',
+        )
+
         setSolAta('')
+
+        resetTransferState()
       }
 
-    restorePhantom()
+    restore()
 
     phantom.on?.(
       'accountChanged',
-      handleAccountChanged,
+      accountChanged,
     )
 
     phantom.on?.(
       'disconnect',
-      handleDisconnect,
+      disconnected,
     )
 
     return () => {
       phantom.removeListener?.(
         'accountChanged',
-        handleAccountChanged,
+        accountChanged,
       )
 
       phantom.removeListener?.(
         'disconnect',
-        handleDisconnect,
+        disconnected,
       )
     }
-  }, [loadSolanaAccount])
+  }, [
+    loadSolanaAccount,
+  ])
 
   // ==========================================================
-  // BALANCE DISPLAY
+  // BALANCES
   // ==========================================================
 
   const fromBalance =
@@ -852,6 +1742,11 @@ function App() {
       : solAddress
         ? solCctBalance
         : '--'
+
+  const quoteReady =
+    quote &&
+    quote.route ===
+      routeKey
 
   // ==========================================================
   // UI
@@ -927,9 +1822,9 @@ function App() {
         </div>
       </header>
 
-      <main className="main">
-        {/* HERO */}
+      {/* MAIN */}
 
+      <main className="main">
         <section className="hero">
           <span className="eyebrow">
             Ethereum ↔ Solana
@@ -944,10 +1839,10 @@ function App() {
           </h2>
 
           <p>
-            Transfer CrossChain Token
-            between Ethereum Sepolia
-            and Solana Devnet through
-            LayerZero V2.
+            Transfer CrossChain
+            Token between Ethereum
+            Sepolia and Solana Devnet
+            through LayerZero V2.
           </p>
         </section>
 
@@ -965,14 +1860,25 @@ function App() {
           </div>
         )}
 
-        {/* WRONG EVM NETWORK */}
+        {quoteError && (
+          <div className="wallet-alert error">
+            {quoteError}
+          </div>
+        )}
+
+        {bridgeError && (
+          <div className="wallet-alert error">
+            {bridgeError}
+          </div>
+        )}
 
         {evmAddress &&
           !isSepolia && (
             <div className="wallet-alert warning">
               <div>
                 <strong>
-                  Wrong Ethereum network
+                  Wrong Ethereum
+                  network
                 </strong>
 
                 <span>
@@ -991,9 +1897,9 @@ function App() {
             </div>
           )}
 
-        <section className="bridge-layout">
-          {/* BRIDGE CARD */}
+        {/* BRIDGE */}
 
+        <section className="bridge-layout">
           <div className="bridge-card">
             <div className="card-heading">
               <div>
@@ -1044,34 +1950,28 @@ function App() {
 
                   <div>
                     <strong>
-                      {
-                        from.shortName
-                      }
+                      {from.shortName}
                     </strong>
 
                     <small>
-                      {
-                        from.networkName
-                      }
+                      {from.networkName}
                     </small>
                   </div>
                 </div>
 
                 <div className="amount-wrap">
                   <input
-                    value={
-                      amount
-                    }
-                    onChange={(
-                      event,
-                    ) =>
-                      setAmount(
-                        event.target
-                          .value,
-                      )
+                    value={amount}
+                    onChange={
+                      handleAmountChange
                     }
                     placeholder="0.0"
                     inputMode="decimal"
+                    disabled={
+                      sendLoading ||
+                      deliveryStatus ===
+                        'pending'
+                    }
                   />
 
                   <span>
@@ -1088,6 +1988,11 @@ function App() {
                 className="switch-button"
                 onClick={
                   switchDirection
+                }
+                disabled={
+                  sendLoading ||
+                  deliveryStatus ===
+                    'pending'
                 }
               >
                 ⇅
@@ -1126,15 +2031,11 @@ function App() {
 
                   <div>
                     <strong>
-                      {
-                        to.shortName
-                      }
+                      {to.shortName}
                     </strong>
 
                     <small>
-                      {
-                        to.networkName
-                      }
+                      {to.networkName}
                     </small>
                   </div>
                 </div>
@@ -1170,7 +2071,13 @@ function App() {
                 </span>
 
                 <strong>
-                  --
+                  {quoteReady
+                    ? `${formatQuoteFee(
+                        quote.value,
+                      )} ${
+                        quote.symbol
+                      }`
+                    : '--'}
                 </strong>
               </div>
 
@@ -1184,6 +2091,8 @@ function App() {
                 </strong>
               </div>
             </div>
+
+            {/* TEMPORARY LAYERZERO ALT TEST */}
 
             {/* ACTION */}
 
@@ -1211,35 +2120,167 @@ function App() {
                 onClick={
                   connectPhantom
                 }
-                disabled={
-                  phantomLoading
-                }
               >
-                {phantomLoading
-                  ? 'Connecting Phantom...'
-                  : 'Connect Phantom'}
+                Connect Phantom
               </button>
-            ) : (
+            ) : deliveryStatus ===
+              'pending' ? (
               <button
                 className="bridge-button"
                 disabled
               >
-                Wallets Connected — Bridge Coming Next
+                Waiting for LayerZero
+                Delivery...
+              </button>
+            ) : deliveryStatus ===
+              'delivered' ? (
+              <button
+                className="bridge-button"
+                onClick={
+                  startAnotherTransfer
+                }
+              >
+                {deliveredAmount} CCT
+                Delivered ✅ — Bridge
+                Again
+              </button>
+            ) : deliveryStatus ===
+              'timeout' ? (
+              <button
+                className="bridge-button"
+                disabled
+              >
+                Check LayerZero Scan
+                Before Retrying
+              </button>
+            ) : quoteReady ? (
+              <button
+                className="bridge-button"
+                onClick={
+                  bridgeCurrentRoute
+                }
+                disabled={
+                  sendLoading
+                }
+              >
+                {sendLoading
+                  ? isEvmToSolana
+                    ? 'Waiting for MetaMask...'
+                    : 'Waiting for Phantom...'
+                  : `Bridge ${amount} CCT`}
+              </button>
+            ) : (
+              <button
+                className="bridge-button"
+                onClick={
+                  quoteBridgeFee
+                }
+                disabled={
+                  quoteLoading ||
+                  sendLoading ||
+                  !amount
+                }
+              >
+                {quoteLoading
+                  ? 'Quoting LayerZero Fee...'
+                  : 'Quote LayerZero Fee'}
               </button>
             )}
 
+            {/* RESULT */}
+
+            {bridgeResult && (
+              <div className="bridge-result">
+                <strong>
+                  Source transaction
+                  confirmed ✅
+                </strong>
+
+                <span>
+                  {bridgeResult.source}
+                  {' → '}
+                  {
+                    bridgeResult.destination
+                  }
+                </span>
+
+                {deliveryStatus ===
+                  'pending' && (
+                  <span>
+                    ⏳ LayerZero is
+                    delivering the CCT.
+                  </span>
+                )}
+
+                {deliveryStatus ===
+                  'delivered' && (
+                  <span>
+                    ✅ {deliveredAmount}{' '}
+                    CCT received on the
+                    destination chain.
+                  </span>
+                )}
+
+                {deliveryStatus ===
+                  'timeout' && (
+                  <span>
+                    ⏳ Delivery was not
+                    detected within five
+                    minutes. Check
+                    LayerZero Scan
+                    before retrying.
+                  </span>
+                )}
+
+                <a
+                  href={
+                    bridgeResult.explorer
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View source
+                  transaction on{' '}
+                  {
+                    bridgeResult.explorerName
+                  }{' '}
+                  ↗
+                </a>
+
+                <a
+                  href={
+                    bridgeResult.layerZeroScan
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Track delivery on
+                  LayerZero Scan ↗
+                </a>
+
+                {deliveryStatus ===
+                  'pending' && (
+                  <span>
+                    Do not submit
+                    another transfer
+                    while delivery is
+                    pending.
+                  </span>
+                )}
+              </div>
+            )}
+
             <p className="helper-text">
-              Both wallets must be
-              connected before
-              cross-chain transfers
-              are enabled.
+              {isEvmToSolana
+                ? 'MetaMask signs Ethereum → Solana transfers.'
+                : 'Phantom signs Solana → Ethereum transfers.'}
             </p>
           </div>
 
           {/* SIDE PANEL */}
 
           <aside className="protocol-panel">
-            {/* ETHEREUM WALLET */}
+            {/* ETH WALLET */}
 
             <div className="info-card">
               <span className="info-label">
@@ -1258,7 +2299,11 @@ function App() {
                       Address
                     </span>
 
-                    <strong>
+                    <strong
+                      title={
+                        evmAddress
+                      }
+                    >
                       {shortenAddress(
                         evmAddress,
                       )}
@@ -1273,7 +2318,9 @@ function App() {
                     <strong>
                       {isSepolia
                         ? 'Sepolia'
-                        : `Chain ${evmChainId}`}
+                        : evmChainId
+                          ? `Chain ${evmChainId}`
+                          : '--'}
                     </strong>
                   </div>
 
@@ -1302,19 +2349,13 @@ function App() {
                   </div>
                 </>
               ) : (
-                <>
-                  <h3>
-                    Not connected
-                  </h3>
-
-                  <p>
-                    Connect MetaMask.
-                  </p>
-                </>
+                <p>
+                  Connect MetaMask.
+                </p>
               )}
             </div>
 
-            {/* SOLANA WALLET */}
+            {/* SOL WALLET */}
 
             <div className="info-card">
               <span className="info-label">
@@ -1385,9 +2426,7 @@ function App() {
                       </span>
 
                       <strong
-                        title={
-                          solAta
-                        }
+                        title={solAta}
                       >
                         {shortenAddress(
                           solAta,
@@ -1397,17 +2436,9 @@ function App() {
                   )}
                 </>
               ) : (
-                <>
-                  <h3>
-                    Not connected
-                  </h3>
-
-                  <p>
-                    Connect Phantom
-                    to load Solana
-                    Devnet balances.
-                  </p>
-                </>
+                <p>
+                  Connect Phantom.
+                </p>
               )}
             </div>
 
@@ -1432,7 +2463,7 @@ function App() {
               </p>
             </div>
 
-            {/* ETH */}
+            {/* ETH NETWORK */}
 
             <div className="info-card">
               <span className="info-label">
@@ -1466,7 +2497,7 @@ function App() {
               </div>
             </div>
 
-            {/* SOL */}
+            {/* SOL NETWORK */}
 
             <div className="info-card">
               <span className="info-label">
