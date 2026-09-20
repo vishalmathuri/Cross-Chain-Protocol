@@ -9,6 +9,15 @@ The project implements two interoperability layers:
 
 It includes EVM smart contracts, a Solana program, LayerZero configuration, automated verification scripts, and a browser frontend with **MetaMask** and **Phantom** wallet integration.
 
+## Live Demo
+
+**Frontend:** https://cross-chain-protocol.vercel.app/
+
+The browser app exposes two protocol modes from one interface:
+
+- **Token Bridge** — bidirectional CCT transfers between Ethereum Sepolia and Solana Devnet
+- **Messaging** — bidirectional application messages between Ethereum Sepolia and Solana Devnet
+
 ---
 
 ## Current Status
@@ -26,6 +35,9 @@ It includes EVM smart contracts, a Solana program, LayerZero configuration, auto
 | Destination balance tracking | ✅ Working |
 | Solana transaction simulation | ✅ Working |
 | Phantom LayerZero ALT workaround | ✅ Working |
+| Cross-chain messaging frontend | ✅ Working |
+| Unified Token Bridge / Messaging workspace | ✅ Working |
+| Public Vercel deployment | ✅ Live |
 | Mainnet deployment | ❌ Not deployed |
 | Independent security audit | ❌ Not audited |
 
@@ -286,11 +298,18 @@ Hpoa7jJwJBVWDXkuxt416QdLH95VHX4w1oT4JyH2vroY
 
 ---
 
-# Browser Bridge
+# Browser Frontend
 
-The `frontend/` application provides the user-facing bridge.
+The `frontend/` application provides a unified LayerZero workspace with two top-level modes:
 
-Users connect:
+```text
+┌──────────────────────────────────────────────┐
+│ Token Bridge            Messaging            │
+│ Transfer CCT            Send app data        │
+└──────────────────────────────────────────────┘
+```
+
+Users connect both:
 
 ```text
 MetaMask
@@ -298,19 +317,18 @@ MetaMask
 Phantom
 ```
 
-and can transfer CCT in either direction:
+and can switch between token transfer and arbitrary application messaging without leaving the app.
+
+## Token Bridge Mode
+
+Supports CCT transfers in both directions:
 
 ```text
 Ethereum Sepolia → Solana Devnet
-```
-
-or:
-
-```text
 Solana Devnet → Ethereum Sepolia
 ```
 
-The frontend:
+The bridge frontend:
 
 * detects MetaMask and Phantom
 * validates connected networks
@@ -323,6 +341,35 @@ The frontend:
 * tracks destination CCT balance
 * exposes block explorer links
 * exposes LayerZero Scan links
+
+## Messaging Mode
+
+Supports application messages in both directions:
+
+```text
+Ethereum Sepolia → Solana Devnet
+Solana Devnet → Ethereum Sepolia
+```
+
+The messaging frontend:
+
+* accepts UTF-8 application payloads
+* enforces the protocol payload-size limit
+* quotes the LayerZero native fee before sending
+* uses the connected MetaMask account as the EVM application sender/receiver
+* uses the connected Phantom account as the Solana application sender/receiver
+* submits messages through the deployed `CrossChainRouter` and Solana OApp
+* confirms the source-chain transaction
+* polls the destination protocol state to detect delivery
+* exposes Etherscan, Solscan, and LayerZero Scan links
+
+The browser implementation is split into:
+
+```text
+frontend/src/components/MessageBridge.jsx
+frontend/src/lib/evmMessaging.js
+frontend/src/lib/solanaMessaging.js
+```
 
 ---
 
@@ -530,6 +577,61 @@ for up to:
 ```
 
 which provides an approximately **5-minute delivery observation window**.
+
+---
+
+# Browser Messaging Transaction Flow
+
+## Ethereum → Solana
+
+```text
+MetaMask
+   ↓
+CrossChainRouter.quoteMessage()
+   ↓
+display LayerZero native fee
+   ↓
+CrossChainRouter.sendMessage()
+   ↓
+Ethereum source confirmation
+   ↓
+LayerZero V2
+   ↓
+Solana OApp receipt/state update
+   ↓
+frontend detects destination delivery
+```
+
+## Solana → Ethereum
+
+```text
+Phantom
+   ↓
+resolve LayerZero send accounts
+   ↓
+quote native fee
+   ↓
+build Solana OApp send instruction
+   ↓
+simulate transaction
+   ↓
+refresh recent blockhash
+   ↓
+Phantom signs
+   ↓
+Solana source confirmation
+   ↓
+LayerZero V2
+   ↓
+CrossChainRouter receives message
+   ↓
+frontend detects destination delivery
+```
+
+During browser integration, the Solana messaging route also required handling two testnet-specific integration details:
+
+* the LayerZero endpoint SDK's send-library discovery could encounter a missing default `SendLibraryConfig` account, so the frontend falls back to the known ULN v3 program for this deployed pathway
+* the final transaction is rebuilt with a fresh blockhash after simulation before Phantom signs, avoiding stale-blockhash simulation/signing failures
 
 ---
 
@@ -915,9 +1017,14 @@ Cross-Chain-Protocol/
 │   ├── src/
 │   │   ├── config/
 │   │   │   └── protocol.js
+│   │   ├── components/
+│   │   │   ├── MessageBridge.jsx
+│   │   │   └── MessageBridge.css
 │   │   ├── lib/
 │   │   │   ├── evmOft.js
-│   │   │   └── solanaOft.js
+│   │   │   ├── solanaOft.js
+│   │   │   ├── evmMessaging.js
+│   │   │   └── solanaMessaging.js
 │   │   ├── App.jsx
 │   │   ├── App.css
 │   │   └── main.jsx
@@ -1139,7 +1246,10 @@ This allowed the issue to be solved without changing the LayerZero OFT instructi
 | Phantom frontend integration         | ✅ Complete                              |
 | Phantom ALT signing workaround       | ✅ Complete                              |
 | Frontend cleanup                     | ✅ Complete                              |
-| Frontend public deployment           | Planned                                 |
+| Cross-chain messaging frontend       | ✅ Complete                              |
+| Unified Bridge / Messaging UI         | ✅ Complete                              |
+| Frontend public deployment           | ✅ Complete                              |
+| Wallet domain/reputation review       | In progress                              |
 | Independent security audit           | Not completed                           |
 | Mainnet deployment                   | Not planned for current testnet version |
 
@@ -1158,6 +1268,7 @@ Important limitations include:
 * Phantom ALT compatibility required an application-side transaction reconstruction workaround
 * bridge behavior depends on the configured LayerZero testnet infrastructure
 * test tokens have no real-world monetary value
+* wallet security/reputation providers may temporarily warn on the newly deployed public domain until domain/project verification and reputation review are completed
 
 ---
 
