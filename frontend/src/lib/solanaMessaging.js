@@ -318,7 +318,9 @@ function makeContext(
     )
 
   const endpoint =
-    new EndpointProgram.Endpoint()
+    new EndpointProgram.Endpoint(
+      EndpointProgram.ENDPOINT_PROGRAM_ID,
+    )
 
   const senderWeb3 =
     new PublicKey(
@@ -513,6 +515,7 @@ function toQuoteInstruction({
   peerUmi,
   endpointSetting,
   senderUmi,
+  senderWeb3,
   receiver,
   data,
   remainingAccounts,
@@ -555,9 +558,7 @@ function toQuoteInstruction({
           dstEid:
             ETHEREUM.eid,
           sender:
-            new PublicKey(
-              senderUmi,
-            ).toBytes(),
+            senderWeb3.toBytes(),
           receiver,
           data,
           options:
