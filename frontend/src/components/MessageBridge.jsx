@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useMemo,
   useState,
 } from 'react'
@@ -7,6 +6,7 @@ import {
 import {
   ETHEREUM,
   SOLANA,
+  MESSAGING,
 } from '../config/protocol'
 
 import {
@@ -104,28 +104,20 @@ function sleep(ms) {
   )
 }
 
-function MessageBridge() {
+function MessageBridge({
+  evmAddress,
+  evmChainId,
+  solAddress,
+  connectMetaMask,
+  switchToSepolia,
+  connectPhantom,
+}) {
   const [
     direction,
     setDirection,
   ] = useState(
     'evm-sol',
   )
-
-  const [
-    evmAddress,
-    setEvmAddress,
-  ] = useState('')
-
-  const [
-    evmChainId,
-    setEvmChainId,
-  ] = useState(null)
-
-  const [
-    solAddress,
-    setSolAddress,
-  ] = useState('')
 
   const [
     message,
@@ -197,198 +189,13 @@ function MessageBridge() {
     )
   }
 
-  useEffect(() => {
-    resetTransfer()
-  }, [
-    direction,
-    message,
-  ])
-
-  useEffect(() => {
-    const ethereum =
-      getMetaMaskProvider()
-
-    if (ethereum) {
-      ethereum
-        .request({
-          method:
-            'eth_accounts',
-        })
-        .then(
-          async (
-            accounts,
-          ) => {
-            if (
-              accounts?.[0]
-            ) {
-              setEvmAddress(
-                accounts[0],
-              )
-            }
-
-            const chainId =
-              await ethereum
-                .request({
-                  method:
-                    'eth_chainId',
-                })
-
-            setEvmChainId(
-              Number(
-                chainId,
-              ),
-            )
-          },
-        )
-        .catch(
-          () => {},
-        )
-    }
-
-    const phantom =
-      getPhantomProvider()
-
-    if (
-      phantom?.publicKey
-    ) {
-      setSolAddress(
-        phantom
-          .publicKey
-          .toString(),
+  const handleMessageChange =
+    (event) => {
+      setMessage(
+        event.target.value,
       )
-    }
-  }, [])
 
-  const connectMetaMask =
-    async () => {
-      setError('')
-
-      const ethereum =
-        getMetaMaskProvider()
-
-      if (!ethereum) {
-        setError(
-          'MetaMask was not detected.',
-        )
-
-        return
-      }
-
-      try {
-        const accounts =
-          await ethereum
-            .request({
-              method:
-                'eth_requestAccounts',
-            })
-
-        const chainId =
-          await ethereum
-            .request({
-              method:
-                'eth_chainId',
-            })
-
-        setEvmAddress(
-          accounts?.[0] ||
-          '',
-        )
-
-        setEvmChainId(
-          Number(
-            chainId,
-          ),
-        )
-      } catch (connectError) {
-        setError(
-          connectError?.message ||
-          'Unable to connect MetaMask.',
-        )
-      }
-    }
-
-  const switchToSepolia =
-    async () => {
-      const ethereum =
-        getMetaMaskProvider()
-
-      if (!ethereum) {
-        setError(
-          'MetaMask was not detected.',
-        )
-
-        return
-      }
-
-      try {
-        await ethereum
-          .request({
-            method:
-              'wallet_switchEthereumChain',
-            params: [
-              {
-                chainId:
-                  ETHEREUM.chainIdHex,
-              },
-            ],
-          })
-
-        setEvmChainId(
-          ETHEREUM.chainId,
-        )
-      } catch (switchError) {
-        setError(
-          switchError?.message ||
-          'Unable to switch MetaMask to Sepolia.',
-        )
-      }
-    }
-
-  const connectPhantom =
-    async () => {
-      setError('')
-
-      const phantom =
-        getPhantomProvider()
-
-      if (!phantom) {
-        setError(
-          'Phantom was not detected.',
-        )
-
-        return
-      }
-
-      try {
-        const response =
-          phantom.publicKey
-            ? {
-                publicKey:
-                  phantom.publicKey,
-              }
-            : await phantom
-                .connect()
-
-        const address =
-          response
-            ?.publicKey
-            ?.toString()
-
-        if (!address) {
-          throw new Error(
-            'Phantom did not return an address.',
-          )
-        }
-
-        setSolAddress(
-          address,
-        )
-      } catch (connectError) {
-        setError(
-          connectError?.message ||
-          'Unable to connect Phantom.',
-        )
-      }
+      resetTransfer()
     }
 
   const validateReady =
@@ -457,6 +264,7 @@ function MessageBridge() {
           setQuote({
             route:
               direction,
+            message,
             value:
               response
                 .nativeFeeEth,
@@ -476,6 +284,7 @@ function MessageBridge() {
           setQuote({
             route:
               direction,
+            message,
             value:
               response
                 .nativeFeeSol,
@@ -503,6 +312,7 @@ function MessageBridge() {
   const waitForDelivery =
     async (
       previousCount,
+      route,
     ) => {
       setDeliveryStatus(
         'pending',
@@ -519,7 +329,8 @@ function MessageBridge() {
 
         try {
           const current =
-            isEvmToSolana
+            route ===
+            'evm-sol'
               ? await getSolanaMessagingReceivedCount()
               : await getEthereumMessagingReceivedCount()
 
@@ -534,8 +345,8 @@ function MessageBridge() {
             return
           }
         } catch {
-          // Keep polling until the
-          // delivery window expires.
+          // Continue polling during
+          // the delivery window.
         }
       }
 
@@ -555,7 +366,9 @@ function MessageBridge() {
         if (
           !quote ||
           quote.route !==
-            direction
+            direction ||
+          quote.message !==
+            message
         ) {
           throw new Error(
             'Quote the LayerZero fee again before sending.',
@@ -585,13 +398,18 @@ function MessageBridge() {
           true,
         )
 
+        const route =
+          direction
+
         const beforeCount =
-          isEvmToSolana
+          route ===
+          'evm-sol'
             ? await getSolanaMessagingReceivedCount()
             : await getEthereumMessagingReceivedCount()
 
         const response =
-          isEvmToSolana
+          route ===
+          'evm-sol'
             ? await sendEvmMessageToSolana({
                 ethereumProvider:
                   getMetaMaskProvider(),
@@ -617,8 +435,9 @@ function MessageBridge() {
 
         setQuote(null)
 
-        waitForDelivery(
+        void waitForDelivery(
           beforeCount,
+          route,
         )
       } catch (sendError) {
         setError(
@@ -650,11 +469,15 @@ function MessageBridge() {
             ? 'sol-evm'
             : 'evm-sol',
       )
+
+      resetTransfer()
     }
 
   const quoteReady =
     quote?.route ===
-    direction
+      direction &&
+    quote?.message ===
+      message
 
   return (
     <section
@@ -727,12 +550,19 @@ function MessageBridge() {
             <button
               type="button"
               onClick={
-                connectMetaMask
+                evmAddress
+                  ? undefined
+                  : connectMetaMask
               }
               className={
                 evmAddress
                   ? 'message-wallet connected'
                   : 'message-wallet'
+              }
+              disabled={
+                Boolean(
+                  evmAddress,
+                )
               }
             >
               MetaMask:{' '}
@@ -759,12 +589,19 @@ function MessageBridge() {
             <button
               type="button"
               onClick={
-                connectPhantom
+                solAddress
+                  ? undefined
+                  : connectPhantom
               }
               className={
                 solAddress
                   ? 'message-wallet connected'
                   : 'message-wallet'
+              }
+              disabled={
+                Boolean(
+                  solAddress,
+                )
               }
             >
               Phantom:{' '}
@@ -790,12 +627,7 @@ function MessageBridge() {
               message
             }
             onChange={
-              (event) =>
-                setMessage(
-                  event
-                    .target
-                    .value,
-                )
+              handleMessageChange
             }
             placeholder={
               isEvmToSolana
@@ -962,7 +794,8 @@ function MessageBridge() {
 
             <strong>
               {shortenAddress(
-                '0x355BD2bdF11D4B2528BC465422AB97EA9843f5a5',
+                MESSAGING
+                  .ethereumRouter,
               )}
             </strong>
           </div>
@@ -974,7 +807,8 @@ function MessageBridge() {
 
             <strong>
               {shortenAddress(
-                '86twc7j7pKySmWBV7pRBFkDkxqKs3bzJMjLCatjaKLSi',
+                MESSAGING
+                  .solanaProgramId,
               )}
             </strong>
           </div>
