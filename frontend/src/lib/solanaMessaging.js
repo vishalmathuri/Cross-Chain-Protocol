@@ -777,7 +777,7 @@ async function simulateFinalTransaction(
           sigVerify:
             false,
           replaceRecentBlockhash:
-            false,
+            true,
         },
       )
 
@@ -921,13 +921,54 @@ export async function sendSolanaMessageToEvm({
     transaction,
   )
 
+  // Rebuild with a fresh blockhash after simulation.
+  // The RPC node may replace the simulated blockhash, and
+  // the quote/account-resolution work can take long enough
+  // for the original blockhash to fall outside the node's
+  // simulation cache.
+  const signingBlockhash =
+    await connection
+      .getLatestBlockhash(
+        'confirmed',
+      )
+
+  const signingMessageV0 =
+    new TransactionMessage({
+      payerKey:
+        senderWeb3,
+      recentBlockhash:
+        signingBlockhash.blockhash,
+      instructions: [
+        computePrice,
+        computeLimit,
+        sendInstruction,
+      ],
+    })
+      .compileToV0Message()
+
+  const signingTransaction =
+    new VersionedTransaction(
+      signingMessageV0,
+    )
+
+  if (
+    signingTransaction
+      .serialize()
+      .length >
+    MAX_TRANSACTION_SIZE
+  ) {
+    throw new Error(
+      'Final messaging transaction exceeds Solana\'s 1232-byte limit.',
+    )
+  }
+
   let signed
 
   try {
     signed =
       await phantomProvider
         .signTransaction(
-          transaction,
+          signingTransaction,
         )
   } catch (error) {
     if (
@@ -967,9 +1008,9 @@ export async function sendSolanaMessageToEvm({
         {
           signature,
           blockhash:
-            latestBlockhash.blockhash,
+            signingBlockhash.blockhash,
           lastValidBlockHeight:
-            latestBlockhash
+            signingBlockhash
               .lastValidBlockHeight,
         },
         'confirmed',
