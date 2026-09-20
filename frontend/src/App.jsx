@@ -2547,7 +2547,14 @@ function App() {
           </aside>
         </section>
 
-        <MessageBridge />
+        <MessageBridge
+          evmAddress={evmAddress}
+          evmChainId={evmChainId}
+          solAddress={solAddress}
+          connectMetaMask={connectMetaMask}
+          switchToSepolia={switchToSepolia}
+          connectPhantom={connectPhantom}
+        />
       </main>
 
       <footer>
