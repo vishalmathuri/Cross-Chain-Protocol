@@ -218,6 +218,117 @@ input {
   line-height: 1.7;
 }
 
+
+/* =========================
+   PROTOCOL MODE
+========================= */
+
+.protocol-tabs {
+  width: min(720px, 100%);
+  margin: 0 auto 30px;
+  padding: 6px;
+
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+
+  border:
+    1px solid rgba(255, 255, 255, 0.08);
+
+  border-radius: 18px;
+
+  background:
+    rgba(16, 19, 29, 0.72);
+
+  box-shadow:
+    inset 0 1px 0
+      rgba(255, 255, 255, 0.025);
+}
+
+.protocol-tab {
+  min-height: 64px;
+  padding: 12px 16px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+
+  border: 0;
+  border-radius: 13px;
+
+  background: transparent;
+  color: #8f95a7;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.protocol-tab:hover {
+  color: #f5f7ff;
+
+  background:
+    rgba(255, 255, 255, 0.045);
+}
+
+.protocol-tab.active {
+  color: #ffffff;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(112, 99, 255, 0.22),
+      rgba(48, 213, 200, 0.12)
+    );
+
+  box-shadow:
+    inset 0 0 0 1px
+      rgba(126, 117, 255, 0.22),
+    0 10px 28px
+      rgba(0, 0, 0, 0.16);
+}
+
+.protocol-tab-icon {
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
+  flex-shrink: 0;
+
+  border-radius: 10px;
+
+  background:
+    rgba(255, 255, 255, 0.06);
+
+  font-size: 16px;
+}
+
+.protocol-tab > span:last-child {
+  display: grid;
+  gap: 3px;
+
+  text-align: left;
+}
+
+.protocol-tab strong {
+  font-size: 14px;
+}
+
+.protocol-tab small {
+  color: #7f8596;
+  font-size: 11px;
+}
+
+.protocol-tab.active small {
+  color: #9fa6b9;
+}
+
 /* =========================
    WALLET ALERT
 ========================= */
