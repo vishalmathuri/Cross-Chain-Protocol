@@ -170,6 +170,11 @@ function App() {
   const [amount, setAmount] =
     useState('')
 
+  const [
+    activeMode,
+    setActiveMode,
+  ] = useState('bridge')
+
   // ==========================================================
   // ETHEREUM STATE
   // ==========================================================
@@ -1845,6 +1850,70 @@ function App() {
           </p>
         </section>
 
+        <div
+          className="protocol-tabs"
+          role="tablist"
+          aria-label="Protocol mode"
+        >
+          <button
+            type="button"
+            className={
+              activeMode ===
+              'bridge'
+                ? 'protocol-tab active'
+                : 'protocol-tab'
+            }
+            onClick={() =>
+              setActiveMode(
+                'bridge',
+              )
+            }
+          >
+            <span className="protocol-tab-icon">
+              ⇄
+            </span>
+
+            <span>
+              <strong>
+                Token Bridge
+              </strong>
+
+              <small>
+                Transfer CCT
+              </small>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={
+              activeMode ===
+              'message'
+                ? 'protocol-tab active'
+                : 'protocol-tab'
+            }
+            onClick={() =>
+              setActiveMode(
+                'message',
+              )
+            }
+          >
+            <span className="protocol-tab-icon">
+              ✦
+            </span>
+
+            <span>
+              <strong>
+                Messaging
+              </strong>
+
+              <small>
+                Send application data
+              </small>
+            </span>
+          </button>
+        </div>
+
         {/* ERRORS */}
 
         {walletError && (
@@ -1859,17 +1928,21 @@ function App() {
           </div>
         )}
 
-        {quoteError && (
-          <div className="wallet-alert error">
-            {quoteError}
-          </div>
-        )}
+        {activeMode ===
+          'bridge' &&
+          quoteError && (
+            <div className="wallet-alert error">
+              {quoteError}
+            </div>
+          )}
 
-        {bridgeError && (
-          <div className="wallet-alert error">
-            {bridgeError}
-          </div>
-        )}
+        {activeMode ===
+          'bridge' &&
+          bridgeError && (
+            <div className="wallet-alert error">
+              {bridgeError}
+            </div>
+          )}
 
         {evmAddress &&
           !isSepolia && (
@@ -1898,7 +1971,9 @@ function App() {
 
         {/* BRIDGE */}
 
-        <section className="bridge-layout">
+        {activeMode ===
+          'bridge' && (
+          <section className="bridge-layout">
           <div className="bridge-card">
             <div className="card-heading">
               <div>
@@ -2546,15 +2621,19 @@ function App() {
             </div>
           </aside>
         </section>
+        )}
 
-        <MessageBridge
-          evmAddress={evmAddress}
-          evmChainId={evmChainId}
-          solAddress={solAddress}
-          connectMetaMask={connectMetaMask}
-          switchToSepolia={switchToSepolia}
-          connectPhantom={connectPhantom}
-        />
+        {activeMode ===
+          'message' && (
+          <MessageBridge
+            evmAddress={evmAddress}
+            evmChainId={evmChainId}
+            solAddress={solAddress}
+            connectMetaMask={connectMetaMask}
+            switchToSepolia={switchToSepolia}
+            connectPhantom={connectPhantom}
+          />
+        )}
       </main>
 
       <footer>
