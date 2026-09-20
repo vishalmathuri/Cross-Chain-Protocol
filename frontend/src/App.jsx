@@ -305,10 +305,6 @@ function App() {
     from === ETHEREUM &&
     to === SOLANA
 
-  const isSolanaToEvm =
-    from === SOLANA &&
-    to === ETHEREUM
-
   const routeKey =
     isEvmToSolana
       ? 'evm-sol'
