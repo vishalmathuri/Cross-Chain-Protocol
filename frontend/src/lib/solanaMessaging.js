@@ -379,53 +379,86 @@ async function getSendLibraryProgram({
   senderUmi,
   storeUmi,
 }) {
-  const sendLibrary =
-    await endpoint
-      .getSendLibrary(
-        umi.rpc,
-        storeUmi,
-        ETHEREUM.eid,
+  try {
+    const sendLibrary =
+      await endpoint
+        .getSendLibrary(
+          umi.rpc,
+          storeUmi,
+          ETHEREUM.eid,
+        )
+
+    if (!sendLibrary.programId) {
+      throw new Error(
+        'LayerZero send library is not configured.',
       )
+    }
 
-  if (!sendLibrary.programId) {
-    throw new Error(
-      'LayerZero send library is not configured.',
-    )
-  }
+    const version =
+      await endpoint
+        .getMessageLibVersion(
+          umi.rpc,
+          senderUmi,
+          sendLibrary.programId,
+        )
 
-  const version =
-    await endpoint
-      .getMessageLibVersion(
-        umi.rpc,
-        senderUmi,
+    if (
+      version.major === 0n &&
+      version.minor === 0 &&
+      version.endpointVersion ===
+        2
+    ) {
+      return new SimpleMessageLibProgram.SimpleMessageLib(
         sendLibrary.programId,
       )
+    }
 
-  if (
-    version.major === 0n &&
-    version.minor === 0 &&
-    version.endpointVersion ===
-      2
-  ) {
-    return new SimpleMessageLibProgram.SimpleMessageLib(
-      sendLibrary.programId,
+    if (
+      version.major === 3n &&
+      version.minor === 0 &&
+      version.endpointVersion ===
+        2
+    ) {
+      return new UlnProgram.Uln(
+        sendLibrary.programId,
+      )
+    }
+
+    throw new Error(
+      'Unsupported LayerZero Solana message library version.',
     )
-  }
+  } catch (error) {
+    const message =
+      String(
+        error?.message ||
+          error ||
+          '',
+      )
 
-  if (
-    version.major === 3n &&
-    version.minor === 0 &&
-    version.endpointVersion ===
-      2
-  ) {
+    const missingEndpointLibraryConfig =
+      message.includes(
+        'Unable to find defaultSendLibraryConfig/sendLibraryConfig account',
+      )
+
+    if (
+      !missingEndpointLibraryConfig
+    ) {
+      throw error
+    }
+
+    // This deployed pathway is wired to LayerZero's
+    // ULN v3 send library. The endpoint SDK's discovery
+    // helper requires both the default and OApp-specific
+    // SendLibraryConfig accounts to exist before it will
+    // return the configured library. On this Devnet path,
+    // the OApp-specific route is usable even when the
+    // endpoint default config account is absent, so use the
+    // known ULN program directly and let quote/send resolve
+    // the actual route accounts.
     return new UlnProgram.Uln(
-      sendLibrary.programId,
+      UlnProgram.ULN_PROGRAM_ID,
     )
   }
-
-  throw new Error(
-    'Unsupported LayerZero Solana message library version.',
-  )
 }
 
 async function getMessageContext(
